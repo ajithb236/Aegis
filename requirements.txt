@@ -1,0 +1,10 @@
+uvicorn 
+psycopg2-binary 
+cryptography 
+phe 
+python-dotenv 
+sqlalchemy 
+pydantic
+asyncpg
+fastapi
+pycryptodome
