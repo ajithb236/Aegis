@@ -8,3 +8,4 @@ pydantic
 asyncpg
 fastapi
 pycryptodome
+requests

@@ -1,5 +1,9 @@
 #entry point for server
 #src\app\main.py
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +13,7 @@ from app.db.init_db import init_db
 from app.utils.logger import get_logger
 
 # Import routers
-from app.api.v1 import alerts#, keymgmt
+from app.api.v1 import alerts, orgs  #, keymgmt
 
 
 #init app
@@ -36,9 +40,19 @@ async def startup_event():
     logger.info("Initializing database connection...")
     await init_db()
     logger.info("Database connected successfully.")
+    
+    # Load Paillier keys for homomorphic encryption
+    try:
+        from app.crypto.paillier_key_manager import load_paillier_keys
+        public_key, private_key = load_paillier_keys()
+        logger.info(f"Paillier keys loaded successfully (n={len(str(public_key.n))} digits)")
+    except Exception as e:
+        logger.warning(f"Failed to load Paillier keys: {e}")
+        logger.warning("Run 'python src/scripts/init_paillier_keys.py' to generate keys")
 
 #register routers
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
+app.include_router(orgs.router, prefix="/api/v1/orgs", tags=["Organizations"])
 #app.include_router(keymgmt.router, prefix="/api/v1/keys", tags=["Key Management"])
 
 

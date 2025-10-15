@@ -18,8 +18,18 @@ def serialize_public_key(pub_key):
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
 
+def serialize_private_key(priv_key):
+    return priv_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
 def deserialize_public_key(pub_pem):
     return serialization.load_pem_public_key(pub_pem)
+
+def deserialize_private_key(priv_pem):
+    return serialization.load_pem_private_key(priv_pem, password=None)
 
 # ================= Signing / Verification =================
 def sign_data(private_key, data: bytes):
