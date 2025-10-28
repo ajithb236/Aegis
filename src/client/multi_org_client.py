@@ -57,12 +57,12 @@ class OrgClient:
                     self.private_key = rsa_utils.deserialize_private_key(f.read())
             return None
         else:
-            print(f"✗ Registration failed: {response.text}")
+            print(f"Registration failed: {response.text}")
             return None
     
     def get_token(self):
         """Get API token for authentication"""
-        print(f"\n📝 Getting API token for {self.org_id}...")
+        print(f"\nGetting API token for {self.org_id}...")
         
         response = requests.post(
             f"{BASE_URL}/orgs/token",
@@ -72,10 +72,10 @@ class OrgClient:
         if response.status_code == 200:
             data = response.json()
             self.token = data['token']
-            print(f"✓ Token obtained: {self.token[:20]}...")
+            print(f"Token obtained: {self.token[:20]}...")
             return self.token
         else:
-            print(f"✗ Token request failed: {response.text}")
+            print(f"Token request failed: {response.text}")
             return None
     
     def get_headers(self):
@@ -86,7 +86,7 @@ class OrgClient:
     
     def submit_alert(self, alert_data: dict, risk_score: int):
         """Submit an encrypted alert with Paillier encrypted risk score"""
-        print(f"\n📤 Submitting alert from {self.org_id}...")
+        print(f"\nSubmitting alert from {self.org_id}...")
         print(f"   Alert data: {alert_data}")
         print(f"   Risk score: {risk_score}")
         
@@ -133,11 +133,11 @@ class OrgClient:
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✓ Alert submitted successfully!")
+            print(f"Alert submitted successfully!")
             print(f"  Alert ID: {data['alert_id']}")
             return data
         else:
-            print(f"✗ Alert submission failed: {response.text}")
+            print(f"Alert submission failed: {response.text}")
             return None
     
     def get_my_info(self):

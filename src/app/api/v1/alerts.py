@@ -1,14 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.db.init_db import get_db_connection
-from app.api.v1.auth import verify_token
+from app.api.v1.auth import get_current_user 
+
 from app.crypto import rsa_utils, hmac_utils, paillier_utils, aes_utils
 import uuid
 import base64
 import json
-# from app.utils.logger import get_logger
 
 router = APIRouter()
-# logger = get_logger()
 
 
 @router.get("/")
@@ -17,7 +16,9 @@ async def get_alerts():
 
 
 @router.post("/submit")
-async def submit_alert(alert: dict, org_id: str = Depends(verify_token)):
+async def submit_alert(alert: dict, current_user: dict = Depends(get_current_user)):  
+    org_id = current_user["sub"]  
+    
     required_fields = ["encrypted_payload", "wrapped_aes_key", "signature", "hmac_beacon"]
     for field in required_fields:
         if field not in alert:
@@ -53,7 +54,7 @@ async def submit_alert(alert: dict, org_id: str = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Signature verification failed: {e}")
 
-    # ================= VALIDATE AND STORE PAILLIER CIPHERTEXT ===================
+  
     try:
         from app.crypto.paillier_key_manager import get_public_key
         
@@ -97,11 +98,14 @@ async def submit_alert(alert: dict, org_id: str = Depends(verify_token)):
     finally:
         await conn.close()
 
+
 @router.get("/search")
-async def search_alerts(hmac_beacon: str, org_id: str = Depends(verify_token)):
+async def search_alerts(hmac_beacon: str, current_user: dict = Depends(get_current_user)): 
     """
     Search alerts by HMAC beacon (equality-based)
+    Requires JWT authentication.
     """
+   
     try:
         conn = await get_db_connection()
         rows = await conn.fetch(
@@ -119,18 +123,19 @@ async def search_alerts(hmac_beacon: str, org_id: str = Depends(verify_token)):
             ]
         }
     except Exception as e:
-        # logger.error(f"DB Error while searching alerts: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
     finally:
         await conn.close()
 
 
 @router.get("/aggregate")
-async def aggregate_risk(org_id: str = Depends(verify_token)):
+async def aggregate_risk(current_user: dict = Depends(get_current_user)): 
     """
     Aggregate Paillier-encrypted risk scores using homomorphic encryption.
     All ciphertexts must be encrypted with the same shared public key.
+    Requires JWT authentication.
     """
+    
     try:
         from app.crypto.paillier_key_manager import get_public_key, get_private_key
         

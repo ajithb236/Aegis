@@ -12,8 +12,6 @@ from app.config import settings
 from app.db.init_db import init_db
 from app.utils.logger import get_logger
 
-# Import routers
-from app.api.v1 import alerts, orgs  #, keymgmt
 
 
 #init app
@@ -50,11 +48,13 @@ async def startup_event():
         logger.warning(f"Failed to load Paillier keys: {e}")
         logger.warning("Run 'python src/scripts/init_paillier_keys.py' to generate keys")
 
-#register routers
+
+from app.api.v1 import alerts, orgs, auth  # Add auth
+
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
 app.include_router(orgs.router, prefix="/api/v1/orgs", tags=["Organizations"])
-#app.include_router(keymgmt.router, prefix="/api/v1/keys", tags=["Key Management"])
-
 
 @app.get("/", tags=["Root"])
 async def root():
@@ -70,7 +70,7 @@ async def root():
 @app.get("/health", tags=["System"])
 async def health_check():
     """
-    Basic system health check.
+    returns status
     """
     return {"status": "OK"}
 

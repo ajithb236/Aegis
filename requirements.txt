@@ -9,3 +9,6 @@ asyncpg
 fastapi
 pycryptodome
 requests
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

@@ -1,49 +1,61 @@
-# src/app/api/v1/orgs.py
-from fastapi import APIRouter, HTTPException, Depends
+'Org management endpoints'
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.db.init_db import get_db_connection
 from app.crypto import rsa_utils
-from app.api.v1.auth import generate_api_token, verify_token
+from app.api.v1.auth import get_current_user  
 from pathlib import Path
-from pydantic import BaseModel
-from typing import Optional
+from app.models.auth_model import OrgRegistration
+from app.utils.password import hash_password
+from app.utils.security_audit import log_security_event
+
 
 router = APIRouter()
 
 
-class OrgRegistration(BaseModel):
-    org_id: str
-    org_name: str
-    contact_email: Optional[str] = None
-
-
-class TokenRequest(BaseModel):
-    org_id: str
-    # In production, add password or other authentication
-
-
 @router.post("/register")
-async def register_organization(org_data: OrgRegistration):
-    """
-    Register a new organization with RSA keypair generation.
-    This generates signing keys and stores the public key in the database.
-    """
+async def register_organization(org_data: OrgRegistration, request: Request):
+    """Register new organization with password and generate RSA keypair."""
     try:
         conn = await get_db_connection()
         
-        # Check if org already exists
+        # Check if org_id already exists
         existing = await conn.fetchrow(
             "SELECT org_id FROM organizations WHERE org_id=$1",
             org_data.org_id
         )
         
         if existing:
+            await log_security_event(
+                "registration_failed",
+                False,
+                org_id_attempted=org_data.org_id,
+                ip_address=request.client.host,
+                details={"reason": "org_id_already_exists"}
+            )
             await conn.close()
             raise HTTPException(status_code=409, detail=f"Organization {org_data.org_id} already exists")
         
-        # Insert organization
-        await conn.execute(
-            "INSERT INTO organizations (org_id, org_name) VALUES ($1, $2)",
-            org_data.org_id, org_data.org_name
+        # Check if email already exists
+        existing_email = await conn.fetchrow(
+            "SELECT email FROM organizations WHERE email=$1",
+            org_data.email
+        )
+        
+        if existing_email:
+            await conn.close()
+            raise HTTPException(status_code=409, detail="Email already registered")
+        
+        # Hash password using SHA-512
+        password_hash = hash_password(org_data.password)
+        
+        # Insert organization with password
+        org_id_db = await conn.fetchval(
+            """
+            INSERT INTO organizations (org_id, org_name, email, password_hash, is_active)
+            VALUES ($1, $2, $3, $4, TRUE)
+            RETURNING id
+            """,
+            org_data.org_id, org_data.org_name, org_data.email, password_hash
         )
         
         # Generate RSA keypair for signing
@@ -51,16 +63,16 @@ async def register_organization(org_data: OrgRegistration):
         pub_pem = rsa_utils.serialize_public_key(pub_key)
         priv_pem = rsa_utils.serialize_private_key(priv_key)
         
-        # Store public key in database
+        # Store ONLY public key in database
         await conn.execute(
             """
             INSERT INTO rsa_keys (org_id, public_key, key_type, is_active)
-            VALUES ((SELECT id FROM organizations WHERE org_id=$1), $2, 'signing', TRUE)
+            VALUES ($1, $2, 'signing', TRUE)
             """,
-            org_data.org_id, pub_pem.decode()
+            org_id_db, pub_pem.decode()
         )
         
-        # Save keys to files
+        # Save keys to filesystem (for demo purposes)
         keys_dir = Path(__file__).resolve().parents[4] / "keys"
         keys_dir.mkdir(exist_ok=True)
         
@@ -72,16 +84,26 @@ async def register_organization(org_data: OrgRegistration):
         with open(pub_key_path, "wb") as f:
             f.write(pub_pem)
         
+        # Log successful registration
+        await log_security_event(
+            "registration_success",
+            True,
+            org_id=org_id_db,
+            org_id_attempted=org_data.org_id,
+            ip_address=request.client.host
+        )
+        
         await conn.close()
         
         return {
             "status": "success",
             "org_id": org_data.org_id,
             "org_name": org_data.org_name,
-            "message": "Organization registered successfully. Private key saved to keys directory.",
-            "private_key_path": str(priv_key_path),
-            "public_key_path": str(pub_key_path),
-            "public_key": pub_pem.decode()
+            "email": org_data.email,
+            "message": "Organization registered successfully",
+            "private_key": priv_pem.decode(),
+            "public_key": pub_pem.decode(),
+            "warning": "⚠️ SAVE YOUR PRIVATE KEY NOW - it cannot be retrieved later!"
         }
         
     except HTTPException:
@@ -94,6 +116,7 @@ async def register_organization(org_data: OrgRegistration):
 async def list_organizations():
     """
     List all registered organizations (public information).
+    No authentication required.
     """
     try:
         conn = await get_db_connection()
@@ -121,6 +144,7 @@ async def list_organizations():
 async def get_organization(org_id: str):
     """
     Get details of a specific organization including their public key.
+    No authentication required (public information).
     """
     try:
         conn = await get_db_connection()
@@ -160,45 +184,14 @@ async def get_organization(org_id: str):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.post("/token")
-async def get_api_token(credentials: TokenRequest):
-    """
-    Generate API token for an organization.
-    In production, this should verify credentials (password, OAuth, etc.)
-    """
-    try:
-        conn = await get_db_connection()
-        row = await conn.fetchrow(
-            "SELECT id, org_name FROM organizations WHERE org_id=$1",
-            credentials.org_id
-        )
-        await conn.close()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="Organization not found")
-        
-        # Generate token
-        token = await generate_api_token(credentials.org_id)
-        
-        return {
-            "token": token,
-            "org_id": credentials.org_id,
-            "org_name": row["org_name"],
-            "token_type": "bearer",
-            "message": "Use this token in Authorization header: Bearer <token>"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Token generation failed: {str(e)}")
-
-
 @router.get("/me/info")
-async def get_my_organization(org_id: str = Depends(verify_token)):
+async def get_my_organization(current_user: dict = Depends(get_current_user)):
     """
     Get information about the authenticated organization.
+    Requires JWT authentication.
     """
+    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    
     try:
         conn = await get_db_connection()
         
@@ -230,10 +223,13 @@ async def get_my_organization(org_id: str = Depends(verify_token)):
 
 
 @router.get("/me/alerts")
-async def get_my_alerts(org_id: str = Depends(verify_token)):
+async def get_my_alerts(current_user: dict = Depends(get_current_user)):
     """
     Get all alerts submitted by the authenticated organization.
+    Requires JWT authentication.
     """
+    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    
     try:
         conn = await get_db_connection()
         
@@ -267,14 +263,15 @@ async def get_my_alerts(org_id: str = Depends(verify_token)):
 
 
 @router.get("/me/keys")
-async def get_my_keys(org_id: str = Depends(verify_token)):
+async def get_my_keys(current_user: dict = Depends(get_current_user)):
     """
     Get the RSA keys for the authenticated organization.
-    WARNING: In production, private keys should NEVER be exposed via API.
-    This is only for demonstration purposes.
+    Requires JWT authentication.
     """
+    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    
     try:
-        # Read keys from file system
+        # Read keys from filesystem
         keys_dir = Path(__file__).resolve().parents[4] / "keys"
         priv_key_path = keys_dir / f"{org_id}_private.pem"
         pub_key_path = keys_dir / f"{org_id}_public.pem"
@@ -295,7 +292,7 @@ async def get_my_keys(org_id: str = Depends(verify_token)):
             "org_id": org_id,
             "public_key": public_key,
             "private_key": private_key,
-            "warning": "Private keys exposed for demo purposes only. NEVER do this in production!"
+            "warning": "⚠️ Private keys exposed for demo purposes only."
         }
         
     except HTTPException:
@@ -308,8 +305,6 @@ async def get_my_keys(org_id: str = Depends(verify_token)):
 async def get_paillier_public_key():
     """
     Get the shared Paillier public key used for homomorphic encryption.
-    All organizations use this same key to encrypt risk scores,
-    enabling homomorphic aggregation without decryption.
     """
     try:
         from app.crypto.paillier_key_manager import get_public_key_json
@@ -318,4 +313,7 @@ async def get_paillier_public_key():
             "info": "Use this public key to encrypt risk scores with Paillier encryption"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve Paillier public key: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve Paillier public key: {str(e)}"
+        )
