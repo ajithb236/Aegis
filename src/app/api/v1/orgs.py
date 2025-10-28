@@ -5,6 +5,16 @@ from app.crypto import rsa_utils
 from app.api.v1.auth import get_current_user  
 from pathlib import Path
 from app.models.auth_model import OrgRegistration
+from app.models.org_model import (
+    RegistrationResponse,
+    OrganizationListResponse,
+    OrganizationPublic,
+    OrganizationDetail,
+    OrganizationInfoResponse,
+    KeysResponse,
+    PaillierPublicKeyResponse
+)
+from app.models.alert_model import MyAlertsResponse, AlertListItem
 from app.utils.password import hash_password
 from app.utils.security_audit import log_security_event
 
@@ -12,9 +22,9 @@ from app.utils.security_audit import log_security_event
 router = APIRouter()
 
 
-@router.post("/register")
+@router.post("/register", response_model=RegistrationResponse, tags=["Organizations"])
 async def register_organization(org_data: OrgRegistration, request: Request):
-    """Register new organization with password and generate RSA keypair."""
+    """Register new organization with password-protected account."""
     try:
         conn = await get_db_connection()
         
@@ -95,16 +105,15 @@ async def register_organization(org_data: OrgRegistration, request: Request):
         
         await conn.close()
         
-        return {
-            "status": "success",
-            "org_id": org_data.org_id,
-            "org_name": org_data.org_name,
-            "email": org_data.email,
-            "message": "Organization registered successfully",
-            "private_key": priv_pem.decode(),
-            "public_key": pub_pem.decode(),
-            "warning": "⚠️ SAVE YOUR PRIVATE KEY NOW - it cannot be retrieved later!"
-        }
+        return RegistrationResponse(
+            org_id=org_data.org_id,
+            org_name=org_data.org_name,
+            email=org_data.email,
+            message="Organization registered successfully",
+            private_key=priv_pem.decode(),
+            public_key=pub_pem.decode(),
+            warning="SAVE YOUR PRIVATE KEY NOW - it cannot be retrieved later"
+        )
         
     except HTTPException:
         raise
@@ -112,12 +121,9 @@ async def register_organization(org_data: OrgRegistration, request: Request):
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
-@router.get("/list")
+@router.get("/list", response_model=OrganizationListResponse, tags=["Organizations"])
 async def list_organizations():
-    """
-    List all registered organizations (public information).
-    No authentication required.
-    """
+    """List all registered organizations."""
     try:
         conn = await get_db_connection()
         rows = await conn.fetch(
@@ -125,27 +131,26 @@ async def list_organizations():
         )
         await conn.close()
         
-        return {
-            "count": len(rows),
-            "organizations": [
-                {
-                    "org_id": r["org_id"],
-                    "org_name": r["org_name"],
-                    "registered_at": r["created_at"].isoformat() if r["created_at"] else None
-                }
-                for r in rows
-            ]
-        }
+        orgs = [
+            OrganizationPublic(
+                org_id=r["org_id"],
+                org_name=r["org_name"],
+                registered_at=r["created_at"].isoformat() if r["created_at"] else None
+            )
+            for r in rows
+        ]
+        
+        return OrganizationListResponse(
+            count=len(orgs),
+            organizations=orgs
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.get("/{org_id}")
+@router.get("/{org_id}", response_model=OrganizationDetail, tags=["Organizations"])
 async def get_organization(org_id: str):
-    """
-    Get details of a specific organization including their public key.
-    No authentication required (public information).
-    """
+    """Get details of a specific organization including their public key."""
     try:
         conn = await get_db_connection()
         
@@ -158,7 +163,6 @@ async def get_organization(org_id: str):
             await conn.close()
             raise HTTPException(status_code=404, detail=f"Organization {org_id} not found")
         
-        # Get public key
         key = await conn.fetchrow(
             """
             SELECT public_key, key_type, created_at 
@@ -170,13 +174,13 @@ async def get_organization(org_id: str):
         
         await conn.close()
         
-        return {
-            "org_id": org["org_id"],
-            "org_name": org["org_name"],
-            "registered_at": org["created_at"].isoformat() if org["created_at"] else None,
-            "public_key": key["public_key"] if key else None,
-            "key_type": key["key_type"] if key else None
-        }
+        return OrganizationDetail(
+            org_id=org["org_id"],
+            org_name=org["org_name"],
+            registered_at=org["created_at"].isoformat() if org["created_at"] else None,
+            public_key=key["public_key"] if key else None,
+            key_type=key["key_type"] if key else None
+        )
         
     except HTTPException:
         raise
@@ -184,13 +188,10 @@ async def get_organization(org_id: str):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.get("/me/info")
+@router.get("/me/info", response_model=OrganizationInfoResponse, tags=["Organizations - Authenticated"])
 async def get_my_organization(current_user: dict = Depends(get_current_user)):
-    """
-    Get information about the authenticated organization.
-    Requires JWT authentication.
-    """
-    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    """Get information about the authenticated organization."""
+    org_id = current_user["sub"]
     
     try:
         conn = await get_db_connection()
@@ -200,7 +201,6 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
             org_id
         )
         
-        # Count alerts submitted by this org
         alert_count = await conn.fetchval(
             """
             SELECT COUNT(*) FROM alerts 
@@ -211,24 +211,21 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
         
         await conn.close()
         
-        return {
-            "org_id": org["org_id"],
-            "org_name": org["org_name"],
-            "registered_at": org["created_at"].isoformat() if org["created_at"] else None,
-            "alerts_submitted": alert_count
-        }
+        return OrganizationInfoResponse(
+            org_id=org["org_id"],
+            org_name=org["org_name"],
+            registered_at=org["created_at"].isoformat() if org["created_at"] else None,
+            alerts_submitted=alert_count
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.get("/me/alerts")
+@router.get("/me/alerts", response_model=MyAlertsResponse, tags=["Organizations - Authenticated"])
 async def get_my_alerts(current_user: dict = Depends(get_current_user)):
-    """
-    Get all alerts submitted by the authenticated organization.
-    Requires JWT authentication.
-    """
-    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    """Get all alerts submitted by the authenticated organization."""
+    org_id = current_user["sub"]
     
     try:
         conn = await get_db_connection()
@@ -245,33 +242,31 @@ async def get_my_alerts(current_user: dict = Depends(get_current_user)):
         
         await conn.close()
         
-        return {
-            "org_id": org_id,
-            "count": len(rows),
-            "alerts": [
-                {
-                    "alert_id": r["alert_id"],
-                    "submitted_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "hmac_beacon": r["hmac_beacon"]
-                }
-                for r in rows
-            ]
-        }
+        alerts = [
+            AlertListItem(
+                alert_id=r["alert_id"],
+                submitted_at=r["created_at"].isoformat() if r["created_at"] else None,
+                hmac_beacon=r["hmac_beacon"]
+            )
+            for r in rows
+        ]
+        
+        return MyAlertsResponse(
+            org_id=org_id,
+            count=len(alerts),
+            alerts=alerts
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@router.get("/me/keys")
+@router.get("/me/keys", response_model=KeysResponse, tags=["Organizations - Authenticated"])
 async def get_my_keys(current_user: dict = Depends(get_current_user)):
-    """
-    Get the RSA keys for the authenticated organization.
-    Requires JWT authentication.
-    """
-    org_id = current_user["sub"]  # Extract org_id from JWT payload
+    """Get the RSA keys for the authenticated organization. Demo purposes only."""
+    org_id = current_user["sub"]
     
     try:
-        # Read keys from filesystem
         keys_dir = Path(__file__).resolve().parents[4] / "keys"
         priv_key_path = keys_dir / f"{org_id}_private.pem"
         pub_key_path = keys_dir / f"{org_id}_public.pem"
@@ -288,12 +283,12 @@ async def get_my_keys(current_user: dict = Depends(get_current_user)):
         with open(pub_key_path, "r") as f:
             public_key = f.read()
         
-        return {
-            "org_id": org_id,
-            "public_key": public_key,
-            "private_key": private_key,
-            "warning": "⚠️ Private keys exposed for demo purposes only."
-        }
+        return KeysResponse(
+            org_id=org_id,
+            public_key=public_key,
+            private_key=private_key,
+            warning="Private keys exposed for demo purposes only"
+        )
         
     except HTTPException:
         raise
@@ -301,17 +296,14 @@ async def get_my_keys(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve keys: {str(e)}")
 
 
-@router.get("/paillier/public-key")
+@router.get("/paillier/public-key", response_model=PaillierPublicKeyResponse, tags=["Organizations"])
 async def get_paillier_public_key():
-    """
-    Get the shared Paillier public key used for homomorphic encryption.
-    """
+    """Get the shared Paillier public key for homomorphic encryption."""
     try:
         from app.crypto.paillier_key_manager import get_public_key_json
-        return {
-            "public_key": get_public_key_json(),
-            "info": "Use this public key to encrypt risk scores with Paillier encryption"
-        }
+        return PaillierPublicKeyResponse(
+            public_key=get_public_key_json()
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500, 

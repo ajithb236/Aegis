@@ -1,9 +1,54 @@
-from dataclasses import dataclass
-from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, Field
 
-@dataclass
-class Organization:
-    id: int
+class OrganizationPublic(BaseModel):
+    """Public organization information"""
     org_id: str
     org_name: str
-    created_at: datetime
+    registered_at: Optional[str] = None
+
+
+class OrganizationDetail(OrganizationPublic):
+    """Detailed organization information including public key"""
+    public_key: Optional[str] = None
+    key_type: Optional[str] = None
+
+
+class OrganizationListResponse(BaseModel):
+    """Response for listing all organizations"""
+    count: int
+    organizations: list[OrganizationPublic]
+
+
+class OrganizationInfoResponse(BaseModel):
+    """Response for authenticated org's own info"""
+    org_id: str
+    org_name: str
+    registered_at: Optional[str]
+    alerts_submitted: int = 0
+
+
+class RegistrationResponse(BaseModel):
+    """Response after successful registration"""
+    status: str = "success"
+    org_id: str
+    org_name: str
+    email: str
+    message: str
+    private_key: str
+    public_key: str
+    warning: str
+
+
+class KeysResponse(BaseModel):
+    """Response for retrieving organization keys"""
+    org_id: str
+    public_key: str
+    private_key: str
+    warning: str
+
+
+class PaillierPublicKeyResponse(BaseModel):
+    """Response for Paillier public key"""
+    public_key: dict = Field(..., description="Paillier public key components")
+    info: str = Field(default="Use this public key to encrypt risk scores with Paillier encryption")

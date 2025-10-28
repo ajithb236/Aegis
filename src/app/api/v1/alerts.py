@@ -1,7 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.db.init_db import get_db_connection
 from app.api.v1.auth import get_current_user 
-
+from app.models.alert_model import (
+    AlertSubmission, 
+    AlertResponse, 
+    AlertSearchResponse,
+    AlertSearchResult,
+    AggregateResponse
+)
 from app.crypto import rsa_utils, hmac_utils, paillier_utils, aes_utils
 import uuid
 import base64
@@ -10,20 +16,14 @@ import json
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/", tags=["Alerts"])
 async def get_alerts():
-    return {"status": "ok", "data": []}
+    return {"status": "ok", "message": "Alerts API is running"}
 
 
-@router.post("/submit")
-async def submit_alert(alert: dict, current_user: dict = Depends(get_current_user)):  
-    org_id = current_user["sub"]  
-    
-    required_fields = ["encrypted_payload", "wrapped_aes_key", "signature", "hmac_beacon"]
-    for field in required_fields:
-        if field not in alert:
-            raise HTTPException(status_code=400, detail=f"Missing field: {field}")
-
+@router.post("/submit", response_model=AlertResponse, tags=["Alerts"])
+async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_current_user)):  
+    org_id = current_user["sub"]
     alert_id = str(uuid.uuid4())
 
     # ================= VERIFY SIGNATURE ===================
@@ -43,8 +43,8 @@ async def submit_alert(alert: dict, current_user: dict = Depends(get_current_use
         pub_pem = row["public_key"].encode()
         public_key = rsa_utils.deserialize_public_key(pub_pem)
 
-        signature = base64.b64decode(alert["signature"])
-        encrypted_payload_bytes = base64.b64decode(alert["encrypted_payload"])
+        signature = base64.b64decode(alert.signature)
+        encrypted_payload_bytes = base64.b64decode(alert.encrypted_payload)
 
         if not rsa_utils.verify_signature(public_key, encrypted_payload_bytes, signature):
             raise HTTPException(status_code=403, detail="Signature verification failed")
@@ -59,8 +59,8 @@ async def submit_alert(alert: dict, current_user: dict = Depends(get_current_use
         from app.crypto.paillier_key_manager import get_public_key
         
         paillier_data = None
-        if alert.get("paillier_ciphertext"):
-            paillier_json_str = alert["paillier_ciphertext"]
+        if alert.paillier_ciphertext:
+            paillier_json_str = alert.paillier_ciphertext
             paillier_json = json.loads(paillier_json_str)
             
             # Verify the ciphertext is encrypted with the shared public key
@@ -84,12 +84,16 @@ async def submit_alert(alert: dict, current_user: dict = Depends(get_current_use
             alert_id,
             org_id,
             encrypted_payload_bytes,
-            base64.b64decode(alert["wrapped_aes_key"]),
+            base64.b64decode(alert.wrapped_aes_key),
             signature,
-            alert["hmac_beacon"],
+            alert.hmac_beacon,
             paillier_data.encode('utf-8') if paillier_data else None
         )
-        return {"status": "success", "alert_id": alert_id}
+        
+        return AlertResponse(
+            alert_id=alert_id,
+            message=f"Alert submitted successfully by {org_id}"
+        )
 
     except HTTPException:
         raise
@@ -99,13 +103,11 @@ async def submit_alert(alert: dict, current_user: dict = Depends(get_current_use
         await conn.close()
 
 
-@router.get("/search")
+@router.get("/search", response_model=AlertSearchResponse, tags=["Alerts"])
 async def search_alerts(hmac_beacon: str, current_user: dict = Depends(get_current_user)): 
-    """
-    Search alerts by HMAC beacon (equality-based)
-    Requires JWT authentication.
-    """
-   
+    """Search alerts by HMAC beacon for privacy-preserving equality search."""
+    org_id = current_user["sub"]
+    
     try:
         conn = await get_db_connection()
         rows = await conn.fetch(
@@ -113,28 +115,35 @@ async def search_alerts(hmac_beacon: str, current_user: dict = Depends(get_curre
             SELECT alert_id, submitter_org_id, created_at
             FROM alerts
             WHERE hmac_beacon = $1
+            ORDER BY created_at DESC
             """,
             hmac_beacon
         )
-        return {
-            "alerts": [
-                {"alert_id": r["alert_id"], "submitter_org_id": r["submitter_org_id"], "created_at": r["created_at"]}
-                for r in rows
-            ]
-        }
+        
+        alerts = [
+            AlertSearchResult(
+                alert_id=r["alert_id"],
+                submitter_org_id=r["submitter_org_id"],
+                created_at=r["created_at"]
+            )
+            for r in rows
+        ]
+        
+        return AlertSearchResponse(
+            count=len(alerts),
+            alerts=alerts,
+            search_beacon=hmac_beacon
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
     finally:
         await conn.close()
 
 
-@router.get("/aggregate")
+@router.get("/aggregate", response_model=AggregateResponse, tags=["Alerts"])
 async def aggregate_risk(current_user: dict = Depends(get_current_user)): 
-    """
-    Aggregate Paillier-encrypted risk scores using homomorphic encryption.
-    All ciphertexts must be encrypted with the same shared public key.
-    Requires JWT authentication.
-    """
+    """Aggregate Paillier-encrypted risk scores using homomorphic encryption."""
+    org_id = current_user["sub"]
     
     try:
         from app.crypto.paillier_key_manager import get_public_key, get_private_key
@@ -144,14 +153,14 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
         await conn.close()
 
         if not rows:
-            return {
-                "count": 0,
-                "total_encrypted": None,
-                "average_encrypted": None,
-                "total_decrypted": 0,
-                "average_decrypted": 0.0,
-                "message": "No alerts with risk scores found"
-            }
+            return AggregateResponse(
+                count=0,
+                total_encrypted=None,
+                average_encrypted=None,
+                total_decrypted=0.0,
+                average_decrypted=0.0,
+                message="No alerts with risk scores found"
+            )
 
         # Get the shared public and private keys
         public_key = get_public_key()
@@ -190,14 +199,14 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
                     continue
 
         if not ciphertexts:
-            return {
-                "count": 0,
-                "total_encrypted": None,
-                "average_encrypted": None,
-                "total_decrypted": 0,
-                "average_decrypted": 0.0,
-                "message": "No valid Paillier ciphertexts found"
-            }
+            return AggregateResponse(
+                count=0,
+                total_encrypted=None,
+                average_encrypted=None,
+                total_decrypted=0.0,
+                average_decrypted=0.0,
+                message="No valid Paillier ciphertexts found"
+            )
 
         # Perform homomorphic addition
         total = ciphertexts[0]
@@ -215,14 +224,14 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
         total_decrypted = paillier_utils.decrypt_paillier(private_key, total)
         average_decrypted = paillier_utils.decrypt_paillier(private_key, average)
 
-        return {
-            "count": len(ciphertexts),
-            "total_encrypted": total_json,
-            "average_encrypted": average_json,
-            "total_decrypted": total_decrypted,
-            "average_decrypted": float(average_decrypted),
-            "message": f"Successfully aggregated {len(ciphertexts)} encrypted risk scores"
-        }
+        return AggregateResponse(
+            count=len(ciphertexts),
+            total_encrypted=total_json,
+            average_encrypted=average_json,
+            total_decrypted=float(total_decrypted),
+            average_decrypted=float(average_decrypted),
+            message=f"Successfully aggregated {len(ciphertexts)} encrypted risk scores"
+        )
 
     except Exception as e:
         import traceback
