@@ -12,11 +12,13 @@ from app.models.org_model import (
     OrganizationDetail,
     OrganizationInfoResponse,
     KeysResponse,
+    EncryptedKeyResponse,
     PaillierPublicKeyResponse
 )
 from app.models.alert_model import MyAlertsResponse, AlertListItem
 from app.utils.password import hash_password
 from app.utils.security_audit import log_security_event
+from app.crypto.password_key_crypto import encrypt_private_key
 
 
 router = APIRouter()
@@ -58,22 +60,29 @@ async def register_organization(org_data: OrgRegistration, request: Request):
         # Hash password using SHA-512
         password_hash = hash_password(org_data.password)
         
-        # Insert organization with password
-        org_id_db = await conn.fetchval(
-            """
-            INSERT INTO organizations (org_id, org_name, email, password_hash, is_active)
-            VALUES ($1, $2, $3, $4, TRUE)
-            RETURNING id
-            """,
-            org_data.org_id, org_data.org_name, org_data.email, password_hash
-        )
-        
         # Generate RSA keypair for signing
         priv_key, pub_key = rsa_utils.generate_rsa_keypair()
         pub_pem = rsa_utils.serialize_public_key(pub_key)
         priv_pem = rsa_utils.serialize_private_key(priv_key)
         
-        # Store ONLY public key in database
+        # Encrypt private key with password
+        encrypted_key_data = encrypt_private_key(priv_pem, org_data.password)
+        
+        # Insert organization with encrypted key in single query
+        org_id_db = await conn.fetchval(
+            """
+            INSERT INTO organizations (org_id, org_name, email, password_hash, is_active,
+                                      encrypted_private_key, key_salt, key_nonce)
+            VALUES ($1, $2, $3, $4, TRUE, $5, $6, $7)
+            RETURNING id
+            """,
+            org_data.org_id, org_data.org_name, org_data.email, password_hash,
+            encrypted_key_data["encrypted_key"],
+            encrypted_key_data["salt"],
+            encrypted_key_data["nonce"]
+        )
+        
+        # Store public key in database
         await conn.execute(
             """
             INSERT INTO rsa_keys (org_id, public_key, key_type, is_active)
@@ -81,18 +90,6 @@ async def register_organization(org_data: OrgRegistration, request: Request):
             """,
             org_id_db, pub_pem.decode()
         )
-        
-        # Save keys to filesystem (for demo purposes)
-        keys_dir = Path(__file__).resolve().parents[4] / "keys"
-        keys_dir.mkdir(exist_ok=True)
-        
-        priv_key_path = keys_dir / f"{org_data.org_id}_private.pem"
-        pub_key_path = keys_dir / f"{org_data.org_id}_public.pem"
-        
-        with open(priv_key_path, "wb") as f:
-            f.write(priv_pem)
-        with open(pub_key_path, "wb") as f:
-            f.write(pub_pem)
         
         # Log successful registration
         await log_security_event(
@@ -110,9 +107,11 @@ async def register_organization(org_data: OrgRegistration, request: Request):
             org_name=org_data.org_name,
             email=org_data.email,
             message="Organization registered successfully",
-            private_key=priv_pem.decode(),
+            encrypted_private_key=encrypted_key_data["encrypted_key"],
+            key_salt=encrypted_key_data["salt"],
+            key_nonce=encrypted_key_data["nonce"],
             public_key=pub_pem.decode(),
-            warning="SAVE YOUR PRIVATE KEY NOW - it cannot be retrieved later"
+            warning="⚠️ SAVE ENCRYPTED KEY - Server cannot decrypt. Password lost = Key lost forever."
         )
         
     except HTTPException:
@@ -261,9 +260,41 @@ async def get_my_alerts(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+@router.get("/me/encrypted-key", response_model=EncryptedKeyResponse, tags=["Organizations - Authenticated"])
+async def get_my_encrypted_key(current_user: dict = Depends(get_current_user)):
+    """Return encrypted private key. Client must decrypt with password."""
+    org_id = current_user["sub"]
+    
+    conn = await get_db_connection()
+    try:
+        result = await conn.fetchrow(
+            """
+            SELECT encrypted_private_key, key_salt, key_nonce
+            FROM organizations
+            WHERE org_id = $1
+            """,
+            org_id
+        )
+        
+        if not result or not result["encrypted_private_key"]:
+            raise HTTPException(status_code=404, detail="Encrypted key not found")
+        
+        return EncryptedKeyResponse(
+            encrypted_private_key=result["encrypted_private_key"],
+            salt=result["key_salt"],
+            nonce=result["key_nonce"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        await conn.close()
+
+
 @router.get("/me/keys", response_model=KeysResponse, tags=["Organizations - Authenticated"])
 async def get_my_keys(current_user: dict = Depends(get_current_user)):
-    """Get the RSA keys for the authenticated organization. Demo purposes only."""
+    """DEPRECATED: Get RSA keys from filesystem. Use /me/encrypted-key instead."""
     org_id = current_user["sub"]
     
     try:
@@ -274,7 +305,7 @@ async def get_my_keys(current_user: dict = Depends(get_current_user)):
         if not priv_key_path.exists() or not pub_key_path.exists():
             raise HTTPException(
                 status_code=404, 
-                detail="Keys not found. Please ensure the organization was properly registered."
+                detail="Keys not found. Use /me/encrypted-key endpoint instead."
             )
         
         with open(priv_key_path, "r") as f:
@@ -287,7 +318,7 @@ async def get_my_keys(current_user: dict = Depends(get_current_user)):
             org_id=org_id,
             public_key=public_key,
             private_key=private_key,
-            warning="Private keys exposed for demo purposes only"
+            warning="DEPRECATED: Use /me/encrypted-key for secure key retrieval"
         )
         
     except HTTPException:

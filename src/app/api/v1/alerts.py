@@ -6,7 +6,8 @@ from app.models.alert_model import (
     AlertResponse, 
     AlertSearchResponse,
     AlertSearchResult,
-    AggregateResponse
+    AggregateResponse,
+    DecryptAlertResponse
 )
 from app.crypto import rsa_utils, hmac_utils, paillier_utils, aes_utils
 import uuid
@@ -237,4 +238,34 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
         import traceback
         print(f"Error during Paillier aggregation: {e}")
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Aggregation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Aggregation failed: {str(e)}")
+
+
+@router.get("/{alert_id}/decrypt", response_model=DecryptAlertResponse, tags=["Alerts"])
+async def decrypt_my_alert(alert_id: str, current_user: dict = Depends(get_current_user)):
+    """Get your own alert for client-side decryption. Only your submitted alerts."""
+    org_id = current_user["sub"]
+    
+    conn = await get_db_connection()
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT a.alert_id, a.encrypted_payload, a.wrapped_aes_key
+            FROM alerts a
+            JOIN organizations o ON a.submitter_org_id = o.id
+            WHERE a.alert_id = $1 AND o.org_id = $2
+            """,
+            alert_id,
+            org_id
+        )
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Alert not found or not yours")
+        
+        return DecryptAlertResponse(
+            alert_id=row["alert_id"],
+            encrypted_payload=base64.b64encode(row["encrypted_payload"]).decode(),
+            wrapped_aes_key=base64.b64encode(row["wrapped_aes_key"]).decode()
+        )
+    finally:
+        await conn.close()

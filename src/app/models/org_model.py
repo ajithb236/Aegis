@@ -35,7 +35,9 @@ class RegistrationResponse(BaseModel):
     org_name: str
     email: str
     message: str
-    private_key: str
+    encrypted_private_key: str
+    key_salt: str
+    key_nonce: str
     public_key: str
     warning: str
 
@@ -46,6 +48,15 @@ class KeysResponse(BaseModel):
     public_key: str
     private_key: str
     warning: str
+
+
+class EncryptedKeyResponse(BaseModel):
+    """Response for encrypted private key retrieval"""
+    encrypted_private_key: str = Field(..., description="Base64-encoded AES-GCM encrypted private key")
+    salt: str = Field(..., description="Base64-encoded salt for PBKDF2 key derivation")
+    nonce: str = Field(..., description="Base64-encoded nonce/IV for AES-GCM decryption")
+    algorithm: str = Field(default="AES-256-GCM-PBKDF2", description="Encryption algorithm used")
+    note: str = Field(default="Decrypt with your password on client side. Server cannot decrypt.")
 
 
 class PaillierPublicKeyResponse(BaseModel):

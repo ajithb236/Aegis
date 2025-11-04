@@ -6,29 +6,8 @@ from phe import paillier
 # ================= Key Generation =================
 def generate_paillier_keypair():
     public_key, private_key = paillier.generate_paillier_keypair()
+
     return public_key, private_key
-
-
-# ================= Key Serialization =================
-def serialize_public_key(pub_key):
-    """Serialize Paillier public key to bytes"""
-    return pickle.dumps(pub_key)
-
-
-def deserialize_public_key(pub_key_bytes):
-    """Deserialize Paillier public key from bytes"""
-    return pickle.loads(pub_key_bytes)
-
-
-def serialize_private_key(priv_key):
-    """Serialize Paillier private key to bytes"""
-    return pickle.dumps(priv_key)
-
-
-def deserialize_private_key(priv_key_bytes):
-    """Deserialize Paillier private key from bytes"""
-    return pickle.loads(priv_key_bytes)
-
 
 # ================= Encryption / Decryption =================
 def encrypt_paillier(pub_key, value: int):
@@ -48,7 +27,6 @@ def decrypt_paillier(priv_key, cipher_bytes):
     return priv_key.decrypt(cipher)
 
 
-# ================= JSON Serialization =================
 def serialize_to_json(cipher_bytes):
     """
     Convert a pickled Paillier ciphertext to JSON-serializable format.

@@ -61,3 +61,11 @@ class MyAlertsResponse(BaseModel):
     org_id: str
     count: int
     alerts: list[AlertListItem]
+
+
+class DecryptAlertResponse(BaseModel):
+    """Response for alert decryption - client decrypts locally"""
+    alert_id: str
+    encrypted_payload: str = Field(..., description="Base64-encoded encrypted payload")
+    wrapped_aes_key: str = Field(..., description="Base64-encoded wrapped AES key")
+    note: str = Field(default="Decrypt with your RSA private key")

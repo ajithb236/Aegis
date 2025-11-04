@@ -20,4 +20,4 @@ async def run_migration(filename: str):
         await conn.close()
 
 if __name__ == "__main__":
-    asyncio.run(run_migration("002_add_login.sql"))
+    asyncio.run(run_migration("003_add_encrypted_keys.sql"))
