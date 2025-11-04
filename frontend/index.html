@@ -1,179 +1,390 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!DOCTYPE html><!DOCTYPE html>
+
 <html lang="en">
-<head>
+
+<head><html lang="en"><html lang="en">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis - Multi-Organization Alert Exchange</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
+
+    <meta http-equiv="refresh" content="0; url=login.html"><head><head>
+
+    <title>Redirecting...</title>
+
+</head>    <meta charset="UTF-8">    <meta charset="UTF-8">
+
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <h1>Aegis</h1>
-            <p class="subtitle">Privacy-Preserving Alert Exchange System</p>
-        </header>
 
-        <!-- Navigation Tabs -->
-        <nav class="tabs">
-            <button class="tab-btn active" data-tab="register">Register Organization</button>
-            <button class="tab-btn" data-tab="login">Get Token</button>
-            <button class="tab-btn" data-tab="submit">Submit Alert</button>
-            <button class="tab-btn" data-tab="search">Search Alerts</button>
-            <button class="tab-btn" data-tab="aggregate">Aggregate Data</button>
-            <button class="tab-btn" data-tab="orgs">Organizations</button>
-        </nav>
+    <p>Redirecting to login...</p>    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        <!-- Main Content Area -->
-        <main class="content">
-            <!-- Register Organization Tab -->
-            <section id="register-tab" class="tab-content active">
-                <h2>Register New Organization</h2>
-                <form id="register-form" class="form">
-                    <div class="form-group">
-                        <label for="reg-org-id">Organization ID</label>
-                        <input type="text" id="reg-org-id" placeholder="e.g., org1" required>
+    <script>window.location.href = 'login.html';</script>
+
+</body>    <title>Aegis - Threat Intelligence Platform</title>    <title>Aegis - Multi-Organization Alert Exchange</title>
+
+</html>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">    <link rel="stylesheet" href="styles.css">
+
+    <link rel="stylesheet" href="styles.css"></head>
+
+</head><body>
+
+<body>    <div class="container">
+
+    <!-- Login View -->        <!-- Header -->
+
+    <div id="auth-view" class="auth-container">        <header>
+
+        <div class="auth-box">            <h1>Aegis</h1>
+
+            <h1>Aegis</h1>            <p class="subtitle">Privacy-Preserving Alert Exchange System</p>
+
+            <p class="subtitle">Privacy-Preserving Threat Intelligence Platform</p>        </header>
+
+            
+
+            <form id="login-form" class="auth-form">        <!-- Navigation Tabs -->
+
+                <div class="form-group">        <nav class="tabs">
+
+                    <label>Organization ID</label>            <button class="tab-btn active" data-tab="register">Register Organization</button>
+
+                    <input type="text" id="login-org-id" required>            <button class="tab-btn" data-tab="login">Get Token</button>
+
+                </div>            <button class="tab-btn" data-tab="submit">Submit Alert</button>
+
+                <div class="form-group">            <button class="tab-btn" data-tab="search">Search Alerts</button>
+
+                    <label>Password</label>            <button class="tab-btn" data-tab="aggregate">Aggregate Data</button>
+
+                    <input type="password" id="login-password" required>            <button class="tab-btn" data-tab="orgs">Organizations</button>
+
+                </div>        </nav>
+
+                <button type="submit" class="btn btn-primary">Login</button>
+
+            </form>        <!-- Main Content Area -->
+
+                    <main class="content">
+
+            <div class="auth-footer">            <!-- Register Organization Tab -->
+
+                <a href="#" onclick="showRegister(); return false;">Register new organization</a>            <section id="register-tab" class="tab-content active">
+
+            </div>                <h2>Register New Organization</h2>
+
+                            <form id="register-form" class="form">
+
+            <div id="auth-message" class="message"></div>                    <div class="form-group">
+
+        </div>                        <label for="reg-org-id">Organization ID</label>
+
+    </div>                        <input type="text" id="reg-org-id" placeholder="e.g., org1" required>
+
                         <small>Unique identifier for your organization</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="reg-org-name">Organization Name</label>
-                        <input type="text" id="reg-org-name" placeholder="e.g., Alpha Security Corp" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="reg-org-email">Contact Email (Optional)</label>
-                        <input type="email" id="reg-org-email" placeholder="contact@example.com">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Register Organization</button>
-                </form>
-                <div id="register-result" class="result"></div>
-            </section>
 
-            <!-- Get Token Tab -->
-            <section id="login-tab" class="tab-content">
-                <h2>Get API Token</h2>
-                <form id="login-form" class="form">
-                    <div class="form-group">
-                        <label for="login-org-id">Organization ID</label>
-                        <input type="text" id="login-org-id" placeholder="e.g., org1" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Get Token</button>
-                </form>
-                <div id="login-result" class="result"></div>
-                <div class="info-box" id="token-info" style="display: none;">
-                    <h3>Current Session</h3>
-                    <p><strong>Organization:</strong> <span id="current-org-name"></span></p>
-                    <p><strong>Org ID:</strong> <span id="current-org-id"></span></p>
-                    <p><strong>Token:</strong> <code id="current-token"></code></p>
-                </div>
-            </section>
+    <!-- Register Modal -->                    </div>
 
-            <!-- Submit Alert Tab -->
-            <section id="submit-tab" class="tab-content">
-                <h2>Submit Alert</h2>
-                <div class="auth-required" id="submit-auth-warning">
-                    <p>Please get an API token first from the "Get Token" tab.</p>
+    <div id="register-modal" class="modal" style="display: none;">                    <div class="form-group">
+
+        <div class="modal-content">                        <label for="reg-org-name">Organization Name</label>
+
+            <div class="modal-header">                        <input type="text" id="reg-org-name" placeholder="e.g., Alpha Security Corp" required>
+
+                <h2>Register Organization</h2>                    </div>
+
+                <button class="close-btn" onclick="closeRegister()">                    <div class="form-group">
+
+                    <i class="bi bi-x-lg"></i>                        <label for="reg-org-email">Contact Email (Optional)</label>
+
+                </button>                        <input type="email" id="reg-org-email" placeholder="contact@example.com">
+
+            </div>                    </div>
+
+                                <button type="submit" class="btn btn-primary">Register Organization</button>
+
+            <form id="register-form">                </form>
+
+                <div class="form-group">                <div id="register-result" class="result"></div>
+
+                    <label>Organization ID</label>            </section>
+
+                    <input type="text" id="reg-org-id" required>
+
+                    <small>Letters, numbers, hyphens, underscores only</small>            <!-- Get Token Tab -->
+
+                </div>            <section id="login-tab" class="tab-content">
+
+                <div class="form-group">                <h2>Get API Token</h2>
+
+                    <label>Organization Name</label>                <form id="login-form" class="form">
+
+                    <input type="text" id="reg-org-name" required>                    <div class="form-group">
+
+                </div>                        <label for="login-org-id">Organization ID</label>
+
+                <div class="form-group">                        <input type="text" id="login-org-id" placeholder="e.g., org1" required>
+
+                    <label>Email</label>                    </div>
+
+                    <input type="email" id="reg-email" required>                    <button type="submit" class="btn btn-primary">Get Token</button>
+
+                </div>                </form>
+
+                <div class="form-group">                <div id="login-result" class="result"></div>
+
+                    <label>Password</label>                <div class="info-box" id="token-info" style="display: none;">
+
+                    <input type="password" id="reg-password" required>                    <h3>Current Session</h3>
+
+                    <small>Min 8 chars, uppercase, lowercase, number required</small>                    <p><strong>Organization:</strong> <span id="current-org-name"></span></p>
+
+                </div>                    <p><strong>Org ID:</strong> <span id="current-org-id"></span></p>
+
+                <div class="form-group">                    <p><strong>Token:</strong> <code id="current-token"></code></p>
+
+                    <label>Confirm Password</label>                </div>
+
+                    <input type="password" id="reg-password-confirm" required>            </section>
+
                 </div>
+
+                <button type="submit" class="btn btn-primary">Register</button>            <!-- Submit Alert Tab -->
+
+            </form>            <section id="submit-tab" class="tab-content">
+
+                            <h2>Submit Alert</h2>
+
+            <div id="register-message" class="message"></div>                <div class="auth-required" id="submit-auth-warning">
+
+        </div>                    <p>Please get an API token first from the "Get Token" tab.</p>
+
+    </div>                </div>
+
                 <form id="submit-form" class="form" style="display: none;">
-                    <div class="form-group">
-                        <label for="alert-type">Alert Type</label>
-                        <select id="alert-type" required>
-                            <option value="">Select type...</option>
-                            <option value="malware">Malware</option>
-                            <option value="phishing">Phishing</option>
-                            <option value="ddos">DDoS</option>
-                            <option value="ransomware">Ransomware</option>
-                            <option value="data_breach">Data Breach</option>
-                            <option value="intrusion">Intrusion</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="alert-severity">Severity</label>
-                        <select id="alert-severity" required>
-                            <option value="">Select severity...</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="alert-source">Source</label>
-                        <input type="text" id="alert-source" placeholder="e.g., endpoint, network, email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="alert-risk-score">Risk Score (0-100)</label>
-                        <input type="number" id="alert-risk-score" min="0" max="100" placeholder="e.g., 75" required>
-                        <small>Will be encrypted using Paillier homomorphic encryption</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="alert-description">Description (Optional)</label>
-                        <textarea id="alert-description" rows="3" placeholder="Additional details..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Submit Alert</button>
-                </form>
-                <div id="submit-result" class="result"></div>
-            </section>
 
-            <!-- Search Alerts Tab -->
-            <section id="search-tab" class="tab-content">
-                <h2>Search Alerts</h2>
-                <div class="auth-required" id="search-auth-warning">
-                    <p>Please get an API token first from the "Get Token" tab.</p>
-                </div>
-                <form id="search-form" class="form" style="display: none;">
-                    <div class="form-group">
-                        <label for="search-type">Alert Type</label>
-                        <select id="search-type" required>
-                            <option value="">Select type to search...</option>
-                            <option value="malware">Malware</option>
-                            <option value="phishing">Phishing</option>
-                            <option value="ddos">DDoS</option>
-                            <option value="ransomware">Ransomware</option>
-                            <option value="data_breach">Data Breach</option>
-                            <option value="intrusion">Intrusion</option>
-                        </select>
-                        <small>Uses HMAC-based privacy-preserving search</small>
+    <!-- Dashboard View -->                    <div class="form-group">
+
+    <div id="dashboard-view" class="dashboard" style="display: none;">                        <label for="alert-type">Alert Type</label>
+
+        <header class="dashboard-header">                        <select id="alert-type" required>
+
+            <div class="header-left">                            <option value="">Select type...</option>
+
+                <h1>Aegis</h1>                            <option value="malware">Malware</option>
+
+                <span id="org-name" class="org-name"></span>                            <option value="phishing">Phishing</option>
+
+            </div>                            <option value="ddos">DDoS</option>
+
+            <button class="btn btn-secondary" onclick="logout()">                            <option value="ransomware">Ransomware</option>
+
+                <i class="bi bi-box-arrow-right"></i> Logout                            <option value="data_breach">Data Breach</option>
+
+            </button>                            <option value="intrusion">Intrusion</option>
+
+        </header>                        </select>
+
                     </div>
-                    <button type="submit" class="btn btn-primary">Search</button>
-                </form>
-                <div id="search-result" class="result"></div>
+
+        <nav class="tabs">                    <div class="form-group">
+
+            <button class="tab-btn active" data-tab="submit">Submit Alert</button>                        <label for="alert-severity">Severity</label>
+
+            <button class="tab-btn" data-tab="my-alerts">My Alerts</button>                        <select id="alert-severity" required>
+
+            <button class="tab-btn" data-tab="search">Search</button>                            <option value="">Select severity...</option>
+
+            <button class="tab-btn" data-tab="aggregate">Aggregate</button>                            <option value="low">Low</option>
+
+            <button class="tab-btn" data-tab="orgs">Organizations</button>                            <option value="medium">Medium</option>
+
+        </nav>                            <option value="high">High</option>
+
+                            <option value="critical">Critical</option>
+
+        <main class="content">                        </select>
+
+            <!-- Submit Alert Tab -->                    </div>
+
+            <section id="submit-tab" class="tab-content active">                    <div class="form-group">
+
+                <h2>Submit Alert</h2>                        <label for="alert-source">Source</label>
+
+                <form id="submit-form">                        <input type="text" id="alert-source" placeholder="e.g., endpoint, network, email" required>
+
+                    <div class="form-row">                    </div>
+
+                        <div class="form-group">                    <div class="form-group">
+
+                            <label>Alert Type</label>                        <label for="alert-risk-score">Risk Score (0-100)</label>
+
+                            <select id="alert-type" required>                        <input type="number" id="alert-risk-score" min="0" max="100" placeholder="e.g., 75" required>
+
+                                <option value="">Select...</option>                        <small>Will be encrypted using Paillier homomorphic encryption</small>
+
+                                <option value="malware">Malware</option>                    </div>
+
+                                <option value="phishing">Phishing</option>                    <div class="form-group">
+
+                                <option value="ddos">DDoS</option>                        <label for="alert-description">Description (Optional)</label>
+
+                                <option value="ransomware">Ransomware</option>                        <textarea id="alert-description" rows="3" placeholder="Additional details..."></textarea>
+
+                                <option value="data_breach">Data Breach</option>                    </div>
+
+                                <option value="intrusion">Intrusion</option>                    <button type="submit" class="btn btn-primary">Submit Alert</button>
+
+                            </select>                </form>
+
+                        </div>                <div id="submit-result" class="result"></div>
+
+                        <div class="form-group">            </section>
+
+                            <label>Severity</label>
+
+                            <select id="alert-severity" required>            <!-- Search Alerts Tab -->
+
+                                <option value="">Select...</option>            <section id="search-tab" class="tab-content">
+
+                                <option value="low">Low</option>                <h2>Search Alerts</h2>
+
+                                <option value="medium">Medium</option>                <div class="auth-required" id="search-auth-warning">
+
+                                <option value="high">High</option>                    <p>Please get an API token first from the "Get Token" tab.</p>
+
+                                <option value="critical">Critical</option>                </div>
+
+                            </select>                <form id="search-form" class="form" style="display: none;">
+
+                        </div>                    <div class="form-group">
+
+                    </div>                        <label for="search-type">Alert Type</label>
+
+                    <div class="form-group">                        <select id="search-type" required>
+
+                        <label>Source</label>                            <option value="">Select type to search...</option>
+
+                        <input type="text" id="alert-source" required>                            <option value="malware">Malware</option>
+
+                    </div>                            <option value="phishing">Phishing</option>
+
+                    <div class="form-group">                            <option value="ddos">DDoS</option>
+
+                        <label>Risk Score (0-100)</label>                            <option value="ransomware">Ransomware</option>
+
+                        <input type="number" id="alert-risk-score" min="0" max="100" required>                            <option value="data_breach">Data Breach</option>
+
+                    </div>                            <option value="intrusion">Intrusion</option>
+
+                    <div class="form-group">                        </select>
+
+                        <label>Description (Optional)</label>                        <small>Uses HMAC-based privacy-preserving search</small>
+
+                        <textarea id="alert-description" rows="3"></textarea>                    </div>
+
+                    </div>                    <button type="submit" class="btn btn-primary">Search</button>
+
+                    <button type="submit" class="btn btn-primary">Submit Alert</button>                </form>
+
+                </form>                <div id="search-result" class="result"></div>
+
+                <div id="submit-result" class="result"></div>            </section>
+
             </section>
 
             <!-- Aggregate Data Tab -->
-            <section id="aggregate-tab" class="tab-content">
-                <h2>Aggregate Risk Scores</h2>
-                <div class="auth-required" id="aggregate-auth-warning">
-                    <p>Please get an API token first from the "Get Token" tab.</p>
-                </div>
-                <div id="aggregate-controls" style="display: none;">
-                    <p class="info-text">
-                        Compute homomorphic aggregates on encrypted risk scores from all organizations.
-                        Results remain encrypted and can only be decrypted by authorized parties.
-                    </p>
-                    <button id="aggregate-btn" class="btn btn-primary">Compute Aggregates</button>
-                </div>
-                <div id="aggregate-result" class="result"></div>
-            </section>
 
+            <!-- My Alerts Tab -->            <section id="aggregate-tab" class="tab-content">
+
+            <section id="my-alerts-tab" class="tab-content">                <h2>Aggregate Risk Scores</h2>
+
+                <h2>My Submitted Alerts</h2>                <div class="auth-required" id="aggregate-auth-warning">
+
+                <button class="btn btn-secondary" onclick="loadMyAlerts()">                    <p>Please get an API token first from the "Get Token" tab.</p>
+
+                    <i class="bi bi-arrow-clockwise"></i> Refresh                </div>
+
+                </button>                <div id="aggregate-controls" style="display: none;">
+
+                <div id="my-alerts-result" class="result"></div>                    <p class="info-text">
+
+            </section>                        Compute homomorphic aggregates on encrypted risk scores from all organizations.
+
+                        Results remain encrypted and can only be decrypted by authorized parties.
+
+            <!-- Search Tab -->                    </p>
+
+            <section id="search-tab" class="tab-content">                    <button id="aggregate-btn" class="btn btn-primary">Compute Aggregates</button>
+
+                <h2>Search Alerts</h2>                </div>
+
+                <form id="search-form">                <div id="aggregate-result" class="result"></div>
+
+                    <div class="form-group">            </section>
+
+                        <label>Alert Type</label>
+
+                        <select id="search-type" required>            <!-- Organizations Tab -->
+
+                            <option value="">Select...</option>            <section id="orgs-tab" class="tab-content">
+
+                            <option value="malware">Malware</option>                <h2>Organizations</h2>
+
+                            <option value="phishing">Phishing</option>                <div class="tab-controls">
+
+                            <option value="ddos">DDoS</option>                    <button id="list-orgs-btn" class="btn btn-secondary">List All Organizations</button>
+
+                            <option value="ransomware">Ransomware</option>                    <button id="my-info-btn" class="btn btn-secondary" style="display: none;">My Organization Info</button>
+
+                            <option value="data_breach">Data Breach</option>                    <button id="my-alerts-btn" class="btn btn-secondary" style="display: none;">My Submitted Alerts</button>
+
+                            <option value="intrusion">Intrusion</option>                </div>
+
+                        </select>                <div id="orgs-result" class="result"></div>
+
+                    </div>            </section>
+
+                    <button type="submit" class="btn btn-primary">Search</button>        </main>
+
+                </form>
+
+                <div id="search-result" class="result"></div>        <!-- Status Bar -->
+
+            </section>        <footer class="status-bar">
+
+            <div id="status-message">Ready</div>
+
+            <!-- Aggregate Tab -->            <div id="api-status">
+
+            <section id="aggregate-tab" class="tab-content">                <span class="status-indicator" id="api-indicator"></span>
+
+                <h2>Aggregate Risk Scores</h2>                <span id="api-text">API: Disconnected</span>
+
+                <p class="info-text">Compute homomorphic aggregates on encrypted risk scores.</p>            </div>
+
+                <button class="btn btn-primary" onclick="computeAggregate()">        </footer>
+
+                    <i class="bi bi-calculator"></i> Compute Aggregates    </div>
+
+                </button>
+
+                <div id="aggregate-result" class="result"></div>    <script src="app.js"></script>
+
+            </section></body>
+
+</html>
             <!-- Organizations Tab -->
             <section id="orgs-tab" class="tab-content">
                 <h2>Organizations</h2>
-                <div class="tab-controls">
-                    <button id="list-orgs-btn" class="btn btn-secondary">List All Organizations</button>
-                    <button id="my-info-btn" class="btn btn-secondary" style="display: none;">My Organization Info</button>
-                    <button id="my-alerts-btn" class="btn btn-secondary" style="display: none;">My Submitted Alerts</button>
-                </div>
+                <button class="btn btn-secondary" onclick="loadOrganizations()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh List
+                </button>
                 <div id="orgs-result" class="result"></div>
             </section>
         </main>
 
-        <!-- Status Bar -->
         <footer class="status-bar">
-            <div id="status-message">Ready</div>
-            <div id="api-status">
-                <span class="status-indicator" id="api-indicator"></span>
-                <span id="api-text">API: Disconnected</span>
-            </div>
+            <span id="status-message">Ready</span>
         </footer>
     </div>
 

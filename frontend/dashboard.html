@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Aegis</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <div class="header-left">
+                <h1>Aegis</h1>
+                <span id="org-name"></span>
+            </div>
+            <button class="btn btn-secondary" onclick="logout()">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+        </header>
+        
+        <nav class="tabs">
+            <button class="tab active" data-tab="submit">Submit Alert</button>
+            <button class="tab" data-tab="my-alerts">My Alerts</button>
+            <button class="tab" data-tab="search">Search</button>
+            <button class="tab" data-tab="aggregate">Aggregate</button>
+            <button class="tab" data-tab="orgs">Organizations</button>
+        </nav>
+        
+        <main class="content">
+            <!-- Submit Alert -->
+            <section id="submit" class="tab-content active">
+                <h2>Submit Alert</h2>
+                <form id="submit-form">
+                    <div class="row">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="type" required>
+                                <option value="">Select...</option>
+                                <option value="malware">Malware</option>
+                                <option value="phishing">Phishing</option>
+                                <option value="ddos">DDoS</option>
+                                <option value="ransomware">Ransomware</option>
+                                <option value="data_breach">Data Breach</option>
+                                <option value="intrusion">Intrusion</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Severity</label>
+                            <select id="severity" required>
+                                <option value="">Select...</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Source</label>
+                        <input type="text" id="source" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Risk Score (0-100)</label>
+                        <input type="number" id="risk-score" min="0" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="description" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </form>
+                <div id="submit-result"></div>
+            </section>
+            
+            <!-- My Alerts -->
+            <section id="my-alerts" class="tab-content">
+                <h2>My Alerts</h2>
+                <button class="btn btn-secondary" onclick="loadMyAlerts()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <div id="my-alerts-result"></div>
+            </section>
+            
+            <!-- Search -->
+            <section id="search" class="tab-content">
+                <h2>Search Alerts</h2>
+                <form id="search-form">
+                    <div class="form-group">
+                        <label>Alert Type</label>
+                        <select id="search-type" required>
+                            <option value="">Select...</option>
+                            <option value="malware">Malware</option>
+                            <option value="phishing">Phishing</option>
+                            <option value="ddos">DDoS</option>
+                            <option value="ransomware">Ransomware</option>
+                            <option value="data_breach">Data Breach</option>
+                            <option value="intrusion">Intrusion</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+                <div id="search-result"></div>
+            </section>
+            
+            <!-- Aggregate -->
+            <section id="aggregate" class="tab-content">
+                <h2>Aggregate Risk Scores</h2>
+                <button class="btn btn-primary" onclick="computeAggregate()">
+                    <i class="bi bi-calculator"></i> Compute
+                </button>
+                <div id="aggregate-result"></div>
+            </section>
+            
+            <!-- Organizations -->
+            <section id="orgs" class="tab-content">
+                <h2>Organizations</h2>
+                <button class="btn btn-secondary" onclick="loadOrgs()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <div id="orgs-result"></div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="js/config.js"></script>
+    <script src="js/session.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/crypto.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
