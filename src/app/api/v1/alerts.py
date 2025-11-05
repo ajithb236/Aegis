@@ -7,7 +7,10 @@ from app.models.alert_model import (
     AlertSearchResponse,
     AlertSearchResult,
     AggregateResponse,
-    DecryptAlertResponse
+    DecryptAlertResponse,
+    AnalyticsSummaryResponse,
+    DailyCount,
+    RiskTrend
 )
 from app.crypto import rsa_utils, hmac_utils, paillier_utils, aes_utils
 import uuid
@@ -27,7 +30,7 @@ async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_
     org_id = current_user["sub"]
     alert_id = str(uuid.uuid4())
 
-    # ================= VERIFY SIGNATURE ===================
+    # Verify signature
     try:
         conn = await get_db_connection()
         row = await conn.fetchrow(
@@ -64,7 +67,6 @@ async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_
             paillier_json_str = alert.paillier_ciphertext
             paillier_json = json.loads(paillier_json_str)
             
-            # Verify the ciphertext is encrypted with the shared public key
             shared_public_key = get_public_key()
             if str(shared_public_key.n) != str(paillier_json["public_key_n"]):
                 raise HTTPException(
@@ -78,9 +80,10 @@ async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_
             """
             INSERT INTO alerts (
                 alert_id, submitter_org_id, encrypted_payload,
-                wrapped_aes_key, signature, hmac_beacon, paillier_ciphertext
+                wrapped_aes_key, signature, hmac_beacon, paillier_ciphertext,
+                alert_type, severity
             ) VALUES ($1, (SELECT id FROM organizations WHERE org_id=$2),
-                      $3, $4, $5, $6, $7)
+                      $3, $4, $5, $6, $7, $8, $9)
             """,
             alert_id,
             org_id,
@@ -88,7 +91,9 @@ async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_
             base64.b64decode(alert.wrapped_aes_key),
             signature,
             alert.hmac_beacon,
-            paillier_data.encode('utf-8') if paillier_data else None
+            paillier_data.encode('utf-8') if paillier_data else None,
+            alert.alert_type,
+            alert.severity
         )
         
         return AlertResponse(
@@ -106,7 +111,7 @@ async def submit_alert(alert: AlertSubmission, current_user: dict = Depends(get_
 
 @router.get("/search", response_model=AlertSearchResponse, tags=["Alerts"])
 async def search_alerts(hmac_beacon: str, current_user: dict = Depends(get_current_user)): 
-    """Search alerts by HMAC beacon for privacy-preserving equality search."""
+    """Search alerts by HMAC beacon."""
     org_id = current_user["sub"]
     
     try:
@@ -143,7 +148,7 @@ async def search_alerts(hmac_beacon: str, current_user: dict = Depends(get_curre
 
 @router.get("/aggregate", response_model=AggregateResponse, tags=["Alerts"])
 async def aggregate_risk(current_user: dict = Depends(get_current_user)): 
-    """Aggregate Paillier-encrypted risk scores using homomorphic encryption."""
+    """Aggregate Paillier-encrypted risk scores."""
     org_id = current_user["sub"]
     
     try:
@@ -171,32 +176,25 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
         for row in rows:
             data = row["paillier_ciphertext"]
             
-            # Convert memoryview to bytes
             if isinstance(data, memoryview):
                 data = bytes(data)
             
-            # Decode bytes to string if needed
             if isinstance(data, bytes):
                 try:
                     data = data.decode('utf-8')
                 except UnicodeDecodeError:
-                    # It's binary pickle data, use as-is
                     ciphertexts.append(data)
                     continue
             
-            # Parse JSON and reconstruct Paillier ciphertext
             if isinstance(data, str):
                 try:
                     json_data = json.loads(data)
-                    # Verify it's encrypted with the shared key
                     if str(public_key.n) != str(json_data["public_key_n"]):
-                        continue  # Skip ciphertexts encrypted with different keys
+                        continue
                     
-                    # Reconstruct the EncryptedNumber from JSON components
                     cipher_bytes = paillier_utils.reconstruct_from_json(json_data)
                     ciphertexts.append(cipher_bytes)
-                except json.JSONDecodeError as e:
-                    print(f"Warning: Invalid JSON in paillier_ciphertext: {e}")
+                except json.JSONDecodeError:
                     continue
 
         if not ciphertexts:
@@ -209,19 +207,14 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
                 message="No valid Paillier ciphertexts found"
             )
 
-        # Perform homomorphic addition
         total = ciphertexts[0]
         for c in ciphertexts[1:]:
             total = paillier_utils.add_paillier(total, c)
 
-        # Compute homomorphic average
         average = paillier_utils.avg_paillier(ciphertexts)
-
-        # Convert to JSON-serializable format (still encrypted)
         total_json = paillier_utils.serialize_to_json(total)
         average_json = paillier_utils.serialize_to_json(average)
         
-        # Decrypt for demonstration purposes
         total_decrypted = paillier_utils.decrypt_paillier(private_key, total)
         average_decrypted = paillier_utils.decrypt_paillier(private_key, average)
 
@@ -235,9 +228,6 @@ async def aggregate_risk(current_user: dict = Depends(get_current_user)):
         )
 
     except Exception as e:
-        import traceback
-        print(f"Error during Paillier aggregation: {e}")
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Aggregation failed: {str(e)}")
 
 
@@ -267,5 +257,134 @@ async def decrypt_my_alert(alert_id: str, current_user: dict = Depends(get_curre
             encrypted_payload=base64.b64encode(row["encrypted_payload"]).decode(),
             wrapped_aes_key=base64.b64encode(row["wrapped_aes_key"]).decode()
         )
+    finally:
+        await conn.close()
+
+
+@router.get("/analytics/summary", response_model=AnalyticsSummaryResponse, tags=["Alerts"])
+async def get_analytics_summary(days: int = 7, current_user: dict = Depends(get_current_user)):
+    from datetime import datetime, timedelta
+    from app.crypto.paillier_key_manager import get_private_key, get_public_key
+    
+    conn = await get_db_connection()
+    try:
+        start_date = datetime.utcnow() - timedelta(days=days)
+        
+        total_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM alerts WHERE created_at >= $1",
+            start_date
+        )
+        
+        type_distribution = await conn.fetch(
+            """
+            SELECT COALESCE(alert_type, 'unknown') as type, COUNT(*) as count
+            FROM alerts WHERE created_at >= $1
+            GROUP BY alert_type
+            """,
+            start_date
+        )
+        
+        daily_counts = await conn.fetch(
+            """
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM alerts WHERE created_at >= $1
+            GROUP BY DATE(created_at) ORDER BY date
+            """,
+            start_date
+        )
+        
+        risk_stats = await conn.fetch(
+            """
+            SELECT DATE(created_at) as date, paillier_ciphertext
+            FROM alerts
+            WHERE created_at >= $1 AND paillier_ciphertext IS NOT NULL
+            ORDER BY date
+            """,
+            start_date
+        )
+        
+        participating_orgs = await conn.fetchval(
+            "SELECT COUNT(DISTINCT submitter_org_id) FROM alerts WHERE created_at >= $1",
+            start_date
+        )
+        
+        type_counts = {row["type"]: row["count"] for row in type_distribution}
+        daily_data = [DailyCount(date=row["date"].isoformat(), count=row["count"]) for row in daily_counts]
+        
+        private_key = get_private_key()
+        shared_public_key = get_public_key()
+        daily_risk = {}
+        
+        for row in risk_stats:
+            date_str = row["date"].isoformat()
+            if date_str not in daily_risk:
+                daily_risk[date_str] = []
+            
+            try:
+                cipher_data = row["paillier_ciphertext"]
+                if isinstance(cipher_data, memoryview):
+                    cipher_data = bytes(cipher_data)
+                if isinstance(cipher_data, bytes):
+                    cipher_data = cipher_data.decode('utf-8')
+                
+                if isinstance(cipher_data, str):
+                    json_data = json.loads(cipher_data)
+                    if str(shared_public_key.n) == str(json_data.get("public_key_n")):
+                        cipher_bytes = paillier_utils.reconstruct_from_json(json_data)
+                        risk_value = paillier_utils.decrypt_paillier(private_key, cipher_bytes)
+                        daily_risk[date_str].append(float(risk_value))
+            except Exception:
+                continue
+        
+        risk_trends = [
+            RiskTrend(
+                date=date,
+                average_risk=round(sum(scores) / len(scores), 2) if scores else 0.0,
+                alert_count=len(scores)
+            )
+            for date, scores in sorted(daily_risk.items())
+        ]
+        
+        response = AnalyticsSummaryResponse(
+            period_days=days,
+            total_alerts=total_count,
+            alerts_by_type=type_counts,
+            daily_counts=daily_data,
+            risk_trends=risk_trends,
+            participating_orgs=participating_orgs,
+            signature="",
+            signature_algorithm="RSA-PSS-SHA256"
+        )
+        
+        response_dict = response.dict()
+        data_to_sign = {k: v for k, v in response_dict.items() if k not in ['signature', 'signature_algorithm']}
+        #js does this differently,using this to ensure that it happens in the same way client side
+        def normalize_floats(obj):
+            if isinstance(obj, float):
+                rounded = round(obj, 2)
+                if rounded == int(rounded):
+                    return int(rounded)
+                return rounded
+            elif isinstance(obj, dict):
+                return {k: normalize_floats(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [normalize_floats(item) for item in obj]
+            return obj
+        
+        data_to_sign = normalize_floats(data_to_sign)
+        
+        import os
+        server_key_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'keys', 'server_private.pem')
+        with open(server_key_path, 'rb') as f:
+            server_private_key = rsa_utils.deserialize_private_key(f.read())
+        
+        data_str = json.dumps(data_to_sign, sort_keys=True, separators=(',', ':'))
+        signature = rsa_utils.sign_data(server_private_key, data_str.encode())
+        response.signature = base64.b64encode(signature).decode()
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analytics failed: {str(e)}")
     finally:
         await conn.close()

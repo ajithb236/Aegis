@@ -11,7 +11,6 @@ from app.models.org_model import (
     OrganizationPublic,
     OrganizationDetail,
     OrganizationInfoResponse,
-    KeysResponse,
     EncryptedKeyResponse,
     PaillierPublicKeyResponse
 )
@@ -292,41 +291,6 @@ async def get_my_encrypted_key(current_user: dict = Depends(get_current_user)):
         await conn.close()
 
 
-@router.get("/me/keys", response_model=KeysResponse, tags=["Organizations - Authenticated"])
-async def get_my_keys(current_user: dict = Depends(get_current_user)):
-    """DEPRECATED: Get RSA keys from filesystem. Use /me/encrypted-key instead."""
-    org_id = current_user["sub"]
-    
-    try:
-        keys_dir = Path(__file__).resolve().parents[4] / "keys"
-        priv_key_path = keys_dir / f"{org_id}_private.pem"
-        pub_key_path = keys_dir / f"{org_id}_public.pem"
-        
-        if not priv_key_path.exists() or not pub_key_path.exists():
-            raise HTTPException(
-                status_code=404, 
-                detail="Keys not found. Use /me/encrypted-key endpoint instead."
-            )
-        
-        with open(priv_key_path, "r") as f:
-            private_key = f.read()
-        
-        with open(pub_key_path, "r") as f:
-            public_key = f.read()
-        
-        return KeysResponse(
-            org_id=org_id,
-            public_key=public_key,
-            private_key=private_key,
-            warning="DEPRECATED: Use /me/encrypted-key for secure key retrieval"
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve keys: {str(e)}")
-
-
 @router.get("/paillier/public-key", response_model=PaillierPublicKeyResponse, tags=["Organizations"])
 async def get_paillier_public_key():
     """Get the shared Paillier public key for homomorphic encryption."""
@@ -339,4 +303,24 @@ async def get_paillier_public_key():
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to retrieve Paillier public key: {str(e)}"
+        )
+
+
+@router.get("/server/public-key", tags=["Organizations"])
+async def get_server_public_key():
+    """Get the server's public key for verifying analytics signatures."""
+    try:
+        import os
+        server_key_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'keys', 'server_public.pem')
+        with open(server_key_path, 'r') as f:
+            public_key = f.read()
+        return {
+            "public_key": public_key,
+            "algorithm": "RSA-PSS-SHA256",
+            "usage": "Server signature verification for analytics responses"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve server public key: {str(e)}"
         )

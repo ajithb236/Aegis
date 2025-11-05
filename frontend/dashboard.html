@@ -9,25 +9,27 @@
 </head>
 <body>
     <div class="dashboard">
-        <header>
-            <div class="header-left">
-                <h1>Aegis</h1>
-                <span id="org-name"></span>
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Aegis</h2>
+                <p id="org-name"></p>
             </div>
-            <button class="btn btn-secondary" onclick="logout()">
-                <i class="bi bi-box-arrow-right"></i> Logout
-            </button>
-        </header>
+            <div class="sidebar-nav">
+                <button class="tab active" data-tab="submit">Submit Alert</button>
+                <button class="tab" data-tab="my-alerts">My Alerts</button>
+                <button class="tab" data-tab="search">Search</button>
+                <button class="tab" data-tab="analytics">Analytics</button>
+                <button class="tab" data-tab="orgs">Organizations</button>
+            </div>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary" style="width: calc(100% - 20px); margin: 10px;" onclick="logout()">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </button>
+            </div>
+        </div>
         
-        <nav class="tabs">
-            <button class="tab active" data-tab="submit">Submit Alert</button>
-            <button class="tab" data-tab="my-alerts">My Alerts</button>
-            <button class="tab" data-tab="search">Search</button>
-            <button class="tab" data-tab="aggregate">Aggregate</button>
-            <button class="tab" data-tab="orgs">Organizations</button>
-        </nav>
-        
-        <main class="content">
+        <div class="main-content">
+            <div class="content">
             <!-- Submit Alert -->
             <section id="submit" class="tab-content active">
                 <h2>Submit Alert</h2>
@@ -103,13 +105,19 @@
                 <div id="search-result"></div>
             </section>
             
-            <!-- Aggregate -->
-            <section id="aggregate" class="tab-content">
-                <h2>Aggregate Risk Scores</h2>
-                <button class="btn btn-primary" onclick="computeAggregate()">
-                    <i class="bi bi-calculator"></i> Compute
-                </button>
-                <div id="aggregate-result"></div>
+            <!-- Analytics -->
+            <section id="analytics" class="tab-content">
+                <h2>Analytics</h2>
+                <div class="analytics-controls">
+                    <label>Period:</label>
+                    <select id="analytics-period">
+                        <option value="7">Last 7 Days</option>
+                        <option value="14">Last 14 Days</option>
+                        <option value="30">Last 30 Days</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadAnalytics()">Load</button>
+                </div>
+                <div id="analytics-result"></div>
             </section>
             
             <!-- Organizations -->
@@ -120,9 +128,15 @@
                 </button>
                 <div id="orgs-result"></div>
             </section>
-        </main>
+            </div>
+        </div>
     </div>
     
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script type="module">
+        import * as paillierBigint from 'https://cdn.jsdelivr.net/npm/paillier-bigint@3.3.0/+esm';
+        window.paillierBigint = paillierBigint;
+    </script>
     <script src="js/config.js"></script>
     <script src="js/session.js"></script>
     <script src="js/utils.js"></script>

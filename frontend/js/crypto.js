@@ -73,7 +73,6 @@ async function importPrivateKey(pemString) {
 }
 
 async function signData(data, privateKey) {
-    // data can be either string or ArrayBuffer
     let dataToSign;
     if (typeof data === 'string') {
         const encoder = new TextEncoder();
@@ -164,7 +163,6 @@ async function computeHMACBeacon(data, key = 'shared-secret') {
 }
 
 async function unwrapAESKey(wrappedKeyBase64, privateKeyPem) {
-    // Import private key for RSA-OAEP decryption (not RSA-PSS signing)
     const pemContents = privateKeyPem
         .replace(/-----BEGIN PRIVATE KEY-----/, '')
         .replace(/-----END PRIVATE KEY-----/, '')
@@ -213,3 +211,62 @@ async function decryptAlert(encryptedPayloadBase64, aesKey) {
     const decoder = new TextDecoder();
     return JSON.parse(decoder.decode(decrypted));
 }
+
+async function encryptRiskScorePaillier(riskScore, publicKeyData) {
+    if (typeof paillierBigint === 'undefined') {
+        throw new Error('Paillier library not loaded');
+    }
+    
+    const pubKey = new paillierBigint.PublicKey(
+        BigInt(publicKeyData.n),
+        BigInt(publicKeyData.g)
+    );
+    
+    const encrypted = pubKey.encrypt(BigInt(riskScore));
+    
+    return JSON.stringify({
+        ciphertext: encrypted.toString(),
+        exponent: 0,
+        public_key_n: publicKeyData.n.toString()
+    });
+}
+
+window.encryptRiskScorePaillier = encryptRiskScorePaillier;
+
+async function verifySignature(data, signatureBase64, publicKeyPem) {
+    try {
+        const pemContents = publicKeyPem
+            .replace(/-----BEGIN PUBLIC KEY-----/, '')
+            .replace(/-----END PUBLIC KEY-----/, '')
+            .replace(/\s/g, '');
+        
+        const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+        
+        const publicKey = await crypto.subtle.importKey(
+            'spki',
+            binaryDer,
+            { name: 'RSA-PSS', hash: 'SHA-256' },
+            false,
+            ['verify']
+        );
+        
+        const encoder = new TextEncoder();
+        const dataBytes = encoder.encode(data);
+        const signatureBytes = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
+        
+        const isValid = await crypto.subtle.verify(
+            { name: 'RSA-PSS', saltLength: 222 },
+            publicKey,
+            signatureBytes,
+            dataBytes
+        );
+        
+        return isValid;
+    } catch (error) {
+        console.error('Signature verification error:', error);
+        return false;
+    }
+}
+
+window.verifySignature = verifySignature;
+

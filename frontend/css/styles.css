@@ -168,72 +168,94 @@ body {
 }
 
 /* Dashboard */
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 .dashboard {
     display: flex;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 200px;
+    height: 100vh;
+    background: var(--bg-light);
+    border-right: 1px solid var(--border);
+    display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    position: relative;
 }
 
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 30px;
-    background: var(--bg-light);
+.sidebar-header {
+    padding: 20px;
     border-bottom: 1px solid var(--border);
 }
 
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-.header-left h1 {
-    font-size: 1.5rem;
+.sidebar-header h2 {
+    font-size: 1.3rem;
     color: var(--accent);
+    margin: 0;
 }
 
-#org-name {
+.sidebar-header p {
+    font-size: 0.85rem;
     color: var(--text-dim);
-    font-size: 0.9rem;
+    margin: 5px 0 0 0;
 }
 
-/* Tabs */
-.tabs {
-    display: flex;
-    gap: 5px;
-    padding: 0 30px;
-    background: var(--bg-light);
-    border-bottom: 1px solid var(--border);
+.sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sidebar-footer {
+    border-top: 1px solid var(--border);
 }
 
 .tab {
-    padding: 12px 20px;
-    background: none;
+    display: block;
+    width: 100%;
+    padding: 15px 20px;
+    background: transparent;
     border: none;
     color: var(--text-dim);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
+    text-align: left;
     transition: all 0.2s;
+    border-left: 3px solid transparent;
+    font-size: 0.95rem;
 }
 
 .tab:hover {
+    background: var(--bg-lighter);
     color: var(--text);
 }
 
 .tab.active {
     color: var(--accent);
-    border-bottom-color: var(--accent);
+    background: var(--bg-lighter);
+    border-left-color: var(--accent);
 }
 
-/* Content */
-.content {
+/* Main Content */
+.main-content {
     flex: 1;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg);
+}
+
+.content {
     padding: 30px;
-    max-width: 1000px;
-    margin: 0 auto;
-    width: 100%;
+    max-width: 1200px;
 }
 
 .tab-content {
@@ -294,19 +316,111 @@ header {
     to { transform: rotate(360deg); }
 }
 
+/* Analytics */
+.analytics-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-card h3 {
+    font-size: 2rem;
+    color: var(--accent);
+    margin: 0;
+}
+
+.stat-card p {
+    margin: 5px 0 0;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.chart-box-half {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.chart-box-half h3 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+}
+
+.chart-box-half canvas {
+    max-height: 200px;
+}
+
+.chart-box {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.chart-box h3 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+}
+
+.chart-box canvas {
+    max-height: 200px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .row {
         grid-template-columns: 1fr;
     }
     
-    header {
+    .dashboard {
         flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
     }
     
-    .tabs {
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .sidebar-nav {
+        display: flex;
         overflow-x: auto;
+    }
+    
+    .tab {
+        white-space: nowrap;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .charts-row {
+        grid-template-columns: 1fr;
     }
 }

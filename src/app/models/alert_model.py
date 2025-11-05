@@ -10,6 +10,8 @@ class AlertSubmission(BaseModel):
     signature: str = Field(..., description="Base64-encoded RSA signature")
     hmac_beacon: str = Field(..., description="HMAC beacon for searchable encryption")
     paillier_ciphertext: Optional[str] = Field(None, description="JSON-serialized Paillier encrypted risk score")
+    alert_type: Optional[str] = Field(None, description="Alert type for analytics")
+    severity: Optional[str] = Field(None, description="Severity level for analytics")
     
     @validator('encrypted_payload', 'wrapped_aes_key', 'signature', 'hmac_beacon')
     def validate_not_empty(cls, v):
@@ -69,3 +71,25 @@ class DecryptAlertResponse(BaseModel):
     encrypted_payload: str = Field(..., description="Base64-encoded encrypted payload")
     wrapped_aes_key: str = Field(..., description="Base64-encoded wrapped AES key")
     note: str = Field(default="Decrypt with your RSA private key")
+
+
+class DailyCount(BaseModel):
+    date: str
+    count: int
+
+
+class RiskTrend(BaseModel):
+    date: str
+    average_risk: float
+    alert_count: int
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    period_days: int
+    total_alerts: int
+    alerts_by_type: dict
+    daily_counts: list[DailyCount]
+    risk_trends: list[RiskTrend]
+    participating_orgs: int
+    signature: str = Field(..., description="Server signature of analytics data")
+    signature_algorithm: str = Field(default="RSA-PSS-SHA256")
