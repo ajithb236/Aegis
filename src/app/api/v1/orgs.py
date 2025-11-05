@@ -1,5 +1,5 @@
 'Org management endpoints'
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from app.db.init_db import get_db_connection
 from app.crypto import rsa_utils
 from app.api.v1.auth import get_current_user  
@@ -220,6 +220,45 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+@router.get("/me/bootstrap", tags=["Organizations - Authenticated"])
+async def get_bootstrap_data(current_user: dict = Depends(get_current_user)):
+    """Get all dashboard data in one request."""
+    org_id = current_user["sub"]
+    
+    conn = await get_db_connection()
+    try:
+        org_data = await conn.fetchrow(
+            "SELECT org_id, org_name FROM organizations WHERE org_id=$1", org_id
+        )
+        
+        encrypted_key = await conn.fetchrow(
+            "SELECT encrypted_private_key, key_salt, key_nonce FROM organizations WHERE org_id=$1", org_id
+        )
+        
+        public_key = await conn.fetchval(
+            "SELECT public_key FROM rsa_keys WHERE org_id=(SELECT id FROM organizations WHERE org_id=$1) AND is_active=TRUE",
+            org_id
+        )
+        
+        from app.crypto.paillier_key_manager import get_public_key_json
+        paillier_key = get_public_key_json()
+        
+        return {
+            "org": {"org_id": org_data["org_id"], "org_name": org_data["org_name"]},
+            "encrypted_key": {
+                "encrypted_private_key": encrypted_key["encrypted_private_key"],
+                "salt": encrypted_key["key_salt"],
+                "nonce": encrypted_key["key_nonce"]
+            },
+            "public_key": public_key,
+            "paillier_public_key": paillier_key
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bootstrap failed: {str(e)}")
+    finally:
+        await conn.close()
+
+
 @router.get("/me/alerts", response_model=MyAlertsResponse, tags=["Organizations - Authenticated"])
 async def get_my_alerts(current_user: dict = Depends(get_current_user)):
     """Get all alerts submitted by the authenticated organization."""
@@ -292,8 +331,9 @@ async def get_my_encrypted_key(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/paillier/public-key", response_model=PaillierPublicKeyResponse, tags=["Organizations"])
-async def get_paillier_public_key():
+async def get_paillier_public_key(response: Response):
     """Get the shared Paillier public key for homomorphic encryption."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     try:
         from app.crypto.paillier_key_manager import get_public_key_json
         return PaillierPublicKeyResponse(
@@ -307,8 +347,9 @@ async def get_paillier_public_key():
 
 
 @router.get("/server/public-key", tags=["Organizations"])
-async def get_server_public_key():
+async def get_server_public_key(response: Response):
     """Get the server's public key for verifying analytics signatures."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     try:
         import os
         server_key_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'keys', 'server_public.pem')

@@ -3,6 +3,19 @@ if (!checkAuth()) throw new Error('Not authenticated');
 
 document.getElementById('org-name').textContent = session.orgName;
 
+// Bootstrap: Load all required data in one request
+let bootstrapData = null;
+(async function loadBootstrap() {
+    try {
+        bootstrapData = await apiRequest('/orgs/me/bootstrap');
+        sessionStorage.setItem('paillierKey', JSON.stringify(bootstrapData.paillier_public_key));
+        sessionStorage.setItem('orgPublicKey', bootstrapData.public_key);
+        sessionStorage.setItem('encryptedKeyData', JSON.stringify(bootstrapData.encrypted_key));
+    } catch (error) {
+        console.error('Bootstrap failed:', error);
+    }
+})();
+
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -26,33 +39,30 @@ document.getElementById('submit-form').addEventListener('submit', async (e) => {
         description: document.getElementById('description').value
     };
     
-    showResult('submit-result', '<p class="loading"></p> Submitting...');
+    const resultDiv = document.getElementById('submit-result');
     
     try {
-        const orgData = await apiRequest(`/orgs/${session.orgId}`);
+        resultDiv.innerHTML = '<p>Submitting alert...</p>';
+        
+        const cachedPublicKey = sessionStorage.getItem('orgPublicKey');
         const { encryptedPayload, aesKey } = await encryptAlert(alertData);
-        const wrappedKey = await wrapAESKey(aesKey, orgData.public_key);
+        const wrappedKey = await wrapAESKey(aesKey, cachedPublicKey);
         const beacon = await computeHMACBeacon(alertData.alert_type);
         
-        const privateKeyPem = await fetchAndDecryptPrivateKey();
-        const privateKey = await importPrivateKey(privateKeyPem);
-        
+        const privateKey = await getImportedPrivateKey();
         const encryptedBytes = base64ToArrayBuffer(encryptedPayload);
         const signature = await signData(encryptedBytes, privateKey);
         
         let encryptedRiskScore = null;
         try {
             if (typeof paillierBigint !== 'undefined') {
-                const paillierKeyData = await apiRequest('/orgs/paillier/public-key');
-                const pubKey = new paillierBigint.PublicKey(
-                    BigInt(paillierKeyData.public_key.n),
-                    BigInt(paillierKeyData.public_key.g)
-                );
+                const pubKey = getPaillierPublicKey();
                 const encryptedRisk = pubKey.encrypt(BigInt(alertData.risk_score));
+                const paillierKeyData = JSON.parse(sessionStorage.getItem('paillierKey'));
                 encryptedRiskScore = JSON.stringify({
                     ciphertext: encryptedRisk.toString(),
                     exponent: 0,
-                    public_key_n: paillierKeyData.public_key.n.toString()
+                    public_key_n: paillierKeyData.n.toString()
                 });
             }
         } catch (err) {
@@ -179,7 +189,7 @@ async function loadOrgs() {
 
 // Decrypt alert
 async function decryptMyAlert(alertId) {
-    const resultDiv = document.getElementById(`decrypt-${alertId}`);
+    const resultDiv = document.getElementById(`decrypted-${alertId}`);
     resultDiv.innerHTML = '<p class="loading"></p> Decrypting...';
     
     try {
@@ -217,8 +227,14 @@ async function loadAnalytics() {
         let signatureStatus = '';
         if (data.signature) {
             try {
-                const keyResponse = await fetch(`${API_BASE_URL}/orgs/server/public-key`);
-                const keyData = await keyResponse.json();
+                let serverPublicKey = sessionStorage.getItem('serverPublicKey');
+                if (!serverPublicKey) {
+                    const keyResponse = await fetch(`${API_BASE_URL}/orgs/server/public-key`);
+                    const keyData = await keyResponse.json();
+                    serverPublicKey = keyData.public_key;
+                    sessionStorage.setItem('serverPublicKey', serverPublicKey);
+                }
+                const keyData = { public_key: serverPublicKey };
                 
                 const dataToVerify = {...data};
                 delete dataToVerify.signature;

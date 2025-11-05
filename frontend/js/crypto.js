@@ -1,5 +1,16 @@
 // Crypto utilities
+let cachedPrivateKeyPem = null;
+let cachedPrivateKey = null;
+let cachedPaillierPublicKey = null;
+let cachedDerivedKey = null;
+let cachedSaltBase64 = null;
+let cachedHMACKey = null;
+
 async function deriveKeyFromPassword(password, saltBase64) {
+    if (cachedDerivedKey && cachedSaltBase64 === saltBase64) {
+        return cachedDerivedKey;
+    }
+    
     const encoder = new TextEncoder();
     const salt = Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0));
     
@@ -11,7 +22,7 @@ async function deriveKeyFromPassword(password, saltBase64) {
         ['deriveKey']
     );
     
-    return await crypto.subtle.deriveKey(
+    cachedDerivedKey = await crypto.subtle.deriveKey(
         {
             name: 'PBKDF2',
             salt: salt,
@@ -23,6 +34,9 @@ async function deriveKeyFromPassword(password, saltBase64) {
         false,
         ['decrypt']
     );
+    
+    cachedSaltBase64 = saltBase64;
+    return cachedDerivedKey;
 }
 
 async function decryptPrivateKey(encryptedBase64, password, saltBase64, nonceBase64) {
@@ -40,19 +54,41 @@ async function decryptPrivateKey(encryptedBase64, password, saltBase64, nonceBas
 }
 
 async function fetchAndDecryptPrivateKey() {
-    const response = await fetch(`${API_BASE_URL}/orgs/me/encrypted-key`, {
-        headers: { 'Authorization': `Bearer ${session.token}` }
-    });
+    if (cachedPrivateKeyPem) {
+        return cachedPrivateKeyPem;
+    }
     
-    if (!response.ok) throw new Error('Failed to fetch key');
+    const cachedData = sessionStorage.getItem('encryptedKeyData');
+    let data;
     
-    const data = await response.json();
-    return await decryptPrivateKey(
+    if (cachedData) {
+        data = JSON.parse(cachedData);
+    } else {
+        const response = await fetch(`${API_BASE_URL}/orgs/me/encrypted-key`, {
+            headers: { 'Authorization': `Bearer ${session.token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch key');
+        data = await response.json();
+    }
+    
+    cachedPrivateKeyPem = await decryptPrivateKey(
         data.encrypted_private_key,
         session.password,
         data.salt,
         data.nonce
     );
+    
+    return cachedPrivateKeyPem;
+}
+
+async function getImportedPrivateKey() {
+    if (cachedPrivateKey) {
+        return cachedPrivateKey;
+    }
+    
+    const pem = await fetchAndDecryptPrivateKey();
+    cachedPrivateKey = await importPrivateKey(pem);
+    return cachedPrivateKey;
 }
 
 async function importPrivateKey(pemString) {
@@ -142,18 +178,21 @@ async function wrapAESKey(aesKey, publicKeyPem) {
 }
 
 async function computeHMACBeacon(data, key = 'shared-secret') {
-    const encoder = new TextEncoder();
-    const keyData = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(key),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-    );
+    if (!cachedHMACKey) {
+        const encoder = new TextEncoder();
+        cachedHMACKey = await crypto.subtle.importKey(
+            'raw',
+            encoder.encode(key),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+    }
     
+    const encoder = new TextEncoder();
     const signature = await crypto.subtle.sign(
         'HMAC',
-        keyData,
+        cachedHMACKey,
         encoder.encode(data)
     );
     
@@ -232,6 +271,22 @@ async function encryptRiskScorePaillier(riskScore, publicKeyData) {
 }
 
 window.encryptRiskScorePaillier = encryptRiskScorePaillier;
+
+function getPaillierPublicKey() {
+    if (cachedPaillierPublicKey) {
+        return cachedPaillierPublicKey;
+    }
+    
+    const paillierKeyData = JSON.parse(sessionStorage.getItem('paillierKey'));
+    if (typeof paillierBigint !== 'undefined') {
+        cachedPaillierPublicKey = new paillierBigint.PublicKey(
+            BigInt(paillierKeyData.n),
+            BigInt(paillierKeyData.g)
+        );
+    }
+    
+    return cachedPaillierPublicKey;
+}
 
 async function verifySignature(data, signatureBase64, publicKeyPem) {
     try {
