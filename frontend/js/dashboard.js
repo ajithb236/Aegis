@@ -16,14 +16,24 @@ let bootstrapData = null;
     }
 })();
 
-// Tab switching
+// Tab switching with lazy loading
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         
         tab.classList.add('active');
-        document.getElementById(tab.dataset.tab).classList.add('active');
+        const targetTab = tab.dataset.tab;
+        document.getElementById(targetTab).classList.add('active');
+        
+        // Lazy load data when tab is clicked
+        if (targetTab === 'my-alerts') {
+            loadMyAlerts();
+        } else if (targetTab === 'shared-alerts') {
+            loadSharedAlerts();
+        } else if (targetTab === 'orgs') {
+            loadOrgs();
+        }
     });
 });
 
@@ -115,8 +125,13 @@ async function loadMyAlerts() {
                     <h4>Alert ${alert.alert_id.substring(0, 8)}...</h4>
                     <p class="meta">Submitted: ${new Date(alert.submitted_at).toLocaleString()}</p>
                     <p class="meta">Beacon: ${alert.hmac_beacon.substring(0, 16)}...</p>
-                    <button onclick="decryptMyAlert('${alert.alert_id}')">Decrypt</button>
+                    <div class="card-actions">
+                        <button onclick="decryptMyAlert('${alert.alert_id}')" class="btn-success"><i class="bi bi-unlock"></i> Decrypt</button>
+                        <button onclick="shareAlert('${alert.alert_id}')" class="btn-secondary"><i class="bi bi-share"></i> Share</button>
+                        <button onclick="viewShares('${alert.alert_id}')" class="btn-secondary"><i class="bi bi-people"></i> Shares</button>
+                    </div>
                     <div id="decrypted-${alert.alert_id}" style="margin-top: 10px;"></div>
+                    <div id="shares-${alert.alert_id}" style="margin-top: 10px;"></div>
                 </div>
             `;
         });
@@ -144,13 +159,13 @@ document.getElementById('search-form').addEventListener('submit', async (e) => {
             return;
         }
         
-        let html = `<p>Found ${data.count} alerts:</p>`;
+        let html = `<p style="margin-bottom: 20px; font-size: 1rem;">Found ${data.count} matching alerts:</p>`;
         data.alerts.forEach(alert => {
             html += `
                 <div class="card">
-                    <h4>Alert ${alert.alert_id.substring(0, 8)}...</h4>
-                    <p class="meta">Org ID: ${alert.submitter_org_id}</p>
-                    <p class="meta">Date: ${new Date(alert.created_at).toLocaleString()}</p>
+                    <h4><i class="bi bi-file-earmark-text"></i> Alert ${alert.alert_id.substring(0, 8)}...</h4>
+                    <p class="meta"><i class="bi bi-building"></i> Organization: ${alert.submitter_org_id}</p>
+                    <p class="meta"><i class="bi bi-clock"></i> Submitted: ${new Date(alert.created_at).toLocaleString()}</p>
                 </div>
             `;
         });
@@ -169,13 +184,13 @@ async function loadOrgs() {
     try {
         const data = await apiRequest('/orgs/list');
         
-        let html = `<p>Total: ${data.count} organizations</p>`;
+        let html = `<p style="margin-bottom: 20px; font-size: 1rem;"><i class="bi bi-building"></i> Total: ${data.count} organizations registered</p>`;
         data.organizations.forEach(org => {
             html += `
                 <div class="card">
-                    <h4>${org.org_name}</h4>
-                    <p class="meta">ID: ${org.org_id}</p>
-                    <p class="meta">Registered: ${new Date(org.registered_at).toLocaleDateString()}</p>
+                    <h4><i class="bi bi-building"></i> ${org.org_name}</h4>
+                    <p class="meta"><i class="bi bi-key"></i> ID: <code style="background: var(--bg-lighter); padding: 2px 6px; border-radius: 3px;">${org.org_id}</code></p>
+                    <p class="meta"><i class="bi bi-calendar"></i> Registered: ${new Date(org.registered_at).toLocaleDateString()}</p>
                 </div>
             `;
         });
@@ -199,7 +214,7 @@ async function decryptMyAlert(alertId) {
         const decrypted = await decryptAlert(alertData.encrypted_payload, aesKey);
         
         resultDiv.innerHTML = `
-            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-top: 5px;">
+            <div class="decrypted-content">
                 <p><strong>Type:</strong> ${decrypted.alert_type}</p>
                 <p><strong>Severity:</strong> ${decrypted.severity}</p>
                 <p><strong>Source:</strong> ${decrypted.source}</p>
@@ -229,8 +244,7 @@ async function loadAnalytics() {
             try {
                 let serverPublicKey = sessionStorage.getItem('serverPublicKey');
                 if (!serverPublicKey) {
-                    const keyResponse = await fetch(`${API_BASE_URL}/orgs/server/public-key`);
-                    const keyData = await keyResponse.json();
+                    const keyData = await apiRequest('/orgs/server/public-key');
                     serverPublicKey = keyData.public_key;
                     sessionStorage.setItem('serverPublicKey', serverPublicKey);
                 }
@@ -401,3 +415,217 @@ function renderRiskChart(riskData) {
 }
 
 window.loadAnalytics = loadAnalytics;
+
+
+// Share alert
+async function shareAlert(alertId) {
+    try {
+        const orgsData = await apiRequest('/orgs/list');
+        
+        document.getElementById('share-alert-id').textContent = alertId.substring(0, 16) + '...';
+        const select = document.getElementById('share-recipients');
+        select.innerHTML = '';
+        
+        orgsData.organizations
+            .filter(org => org.org_id !== session.orgId)
+            .forEach(org => {
+                const option = document.createElement('option');
+                option.value = org.org_id;
+                option.textContent = `${org.org_name} (${org.org_id})`;
+                select.appendChild(option);
+            });
+        
+        document.getElementById('share-modal').style.display = 'flex';
+        
+        document.getElementById('share-form').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const selectedOrgs = Array.from(select.selectedOptions).map(opt => opt.value);
+            
+            if (selectedOrgs.length === 0) {
+                showResult('share-result', '<p class="error">Select at least one organization</p>');
+                return;
+            }
+            
+            try {
+                showResult('share-result', '<p>Unwrapping AES key...</p>');
+                
+                const alertData = await apiRequest(`/alerts/${alertId}/decrypt`);
+                const privateKeyPem = await fetchAndDecryptPrivateKey();
+                const aesKey = await unwrapAESKey(alertData.wrapped_aes_key, privateKeyPem);
+                
+                showResult('share-result', '<p>Fetching recipient public keys...</p>');
+                
+                const recipientKeys = {};
+                for (const orgId of selectedOrgs) {
+                    const keyData = await apiRequest(`/orgs/${orgId}/public-key`);
+                    recipientKeys[orgId] = keyData.public_key;
+                }
+                
+                showResult('share-result', '<p>Re-encrypting for recipients...</p>');
+                
+                const shares = {};
+                for (const orgId of selectedOrgs) {
+                    const wrappedKey = await wrapAESKeyForRecipient(aesKey, recipientKeys[orgId]);
+                    shares[orgId] = wrappedKey;
+                }
+                
+                showResult('share-result', '<p>Submitting shares...</p>');
+                
+                const result = await apiRequest(`/alerts/${alertId}/share`, {
+                    method: 'POST',
+                    body: JSON.stringify({ shares })
+                });
+                
+                let message = `Shared with ${result.shared_with.length} organizations!`;
+                if (result.restored && result.restored.length > 0) {
+                    message += ` (Restored ${result.restored.length} previously revoked shares)`;
+                }
+                
+                showResult('share-result', `<p class="success">${message}</p>`);
+                setTimeout(closeShareModal, 2000);
+                
+            } catch (error) {
+                showResult('share-result', `<p class="error">${error.message}</p>`);
+            }
+        };
+        
+    } catch (error) {
+        alert('Failed to load organizations: ' + error.message);
+    }
+}
+
+function closeShareModal() {
+    document.getElementById('share-modal').style.display = 'none';
+    document.getElementById('share-form').reset();
+    document.getElementById('share-result').innerHTML = '';
+}
+
+window.shareAlert = shareAlert;
+window.closeShareModal = closeShareModal;
+
+
+// Shared alerts
+async function loadSharedAlerts() {
+    showResult('shared-alerts-result', '<p class="loading"></p> Loading...');
+    
+    try {
+        const data = await apiRequest('/alerts/shared-with-me');
+        
+        if (data.count === 0) {
+            showResult('shared-alerts-result', '<p>No alerts shared with you yet.</p>');
+            return;
+        }
+        
+        let html = `<p style="margin-bottom: 20px; font-size: 1rem;">${data.count} alerts shared with you:</p>`;
+        data.alerts.forEach(alert => {
+            html += `
+                <div class="card">
+                    <h4>${alert.alert_type} - ${alert.severity}</h4>
+                    <p class="meta"><i class="bi bi-building"></i> Shared by: <strong>${alert.shared_by_name}</strong> (${alert.shared_by})</p>
+                    <p class="meta"><i class="bi bi-clock"></i> Shared: ${new Date(alert.shared_at).toLocaleString()}</p>
+                    <div class="card-actions">
+                        <button type="button" onclick="decryptSharedAlert('${alert.alert_id}'); return false;" class="btn-success"><i class="bi bi-unlock"></i> Decrypt</button>
+                    </div>
+                    <div id="decrypted-shared-${alert.alert_id}"></div>
+                </div>
+            `;
+        });
+        
+        showResult('shared-alerts-result', html);
+        
+    } catch (error) {
+        showResult('shared-alerts-result', `<p class="error">${error.message}</p>`);
+    }
+}
+
+async function decryptSharedAlert(alertId) {
+    const resultDiv = document.getElementById(`decrypted-shared-${alertId}`);
+    if (!resultDiv) return;
+    
+    resultDiv.innerHTML = '<p>Decrypting...</p>';
+    
+    try {
+        const alertData = await apiRequest(`/alerts/${alertId}/get-shared`);
+        const privateKeyPem = await fetchAndDecryptPrivateKey();
+        const aesKey = await unwrapAESKey(alertData.wrapped_aes_key, privateKeyPem);
+        const decrypted = await decryptAlert(alertData.encrypted_payload, aesKey);
+        
+        resultDiv.innerHTML = `
+            <div class="decrypted-content">
+                <p><strong>Type:</strong> ${decrypted.alert_type}</p>
+                <p><strong>Severity:</strong> ${decrypted.severity}</p>
+                <p><strong>Source:</strong> ${decrypted.source}</p>
+                <p><strong>Risk Score:</strong> ${decrypted.risk_score}</p>
+                <p><strong>Description:</strong> ${decrypted.description}</p>
+            </div>
+        `;
+        
+    } catch (error) {
+        resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+    }
+}
+
+async function viewShares(alertId) {
+    const resultDiv = document.getElementById(`shares-${alertId}`);
+    if (!resultDiv) return;
+    
+    resultDiv.innerHTML = '<p>Loading shares...</p>';
+    
+    try {
+        const data = await apiRequest(`/alerts/${alertId}/shares`);
+        
+        if (data.shares.length === 0) {
+            resultDiv.innerHTML = '<p style="color: #888; margin-top: 10px;">Not shared with anyone yet.</p>';
+            return;
+        }
+        
+        let html = '<div class="shares-container">';
+        html += '<h5><i class="bi bi-people"></i> Shared With:</h5>';
+        
+        data.shares.forEach(share => {
+            const statusClass = share.revoked ? 'revoked' : 'active';
+            const statusText = share.revoked ? '(Revoked)' : '(Active)';
+            const revokeBtn = !share.revoked 
+                ? `<button onclick="revokeShare('${alertId}', '${share.org_id}')" class="btn-danger"><i class="bi bi-x-circle"></i> Revoke</button>`
+                : '<span style="color: var(--text-dim); font-size: 0.85rem;">Access Revoked</span>';
+            
+            html += `
+                <div class="share-item">
+                    <div class="share-info">
+                        <strong>${share.org_name}</strong>
+                        <span class="share-status ${statusClass}">${statusText}</span>
+                        <div style="font-size: 0.85rem; color: var(--text-dim); margin-top: 4px;">${share.org_id}</div>
+                    </div>
+                    ${revokeBtn}
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        resultDiv.innerHTML = html;
+        
+    } catch (error) {
+        resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+    }
+}
+
+async function revokeShare(alertId, recipientOrgId) {
+    if (!confirm(`Revoke access for ${recipientOrgId}?`)) return;
+    
+    try {
+        await apiRequest(`/alerts/${alertId}/share/${recipientOrgId}`, {
+            method: 'DELETE'
+        });
+        
+        viewShares(alertId);
+        
+    } catch (error) {
+        alert(`Error revoking share: ${error.message}`);
+    }
+}
+
+window.loadSharedAlerts = loadSharedAlerts;
+window.decryptSharedAlert = decryptSharedAlert;
+window.viewShares = viewShares;
+window.revokeShare = revokeShare;

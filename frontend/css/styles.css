@@ -114,14 +114,32 @@ body {
 }
 
 /* Buttons */
-.btn {
-    padding: 10px 20px;
+button {
+    padding: 12px 20px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 0.95rem;
     font-weight: 500;
-    transition: background 0.2s;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+}
+
+button i {
+    font-size: 1.1rem;
+}
+
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s;
 }
 
 .btn-primary {
@@ -132,6 +150,8 @@ body {
 
 .btn-primary:hover {
     background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
 .btn-secondary {
@@ -142,6 +162,38 @@ body {
 
 .btn-secondary:hover {
     background: var(--bg-light);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+}
+
+.btn-danger {
+    background: #d32f2f;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-danger:hover {
+    background: #b71c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+}
+
+.btn-success {
+    background: var(--success);
+    color: white;
+    border: none;
+}
+
+.btn-success:hover {
+    background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
 /* Messages */
@@ -275,30 +327,116 @@ body {
 .card {
     background: var(--bg-light);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 15px;
+    border-radius: 8px;
+    padding: 20px;
     margin-bottom: 15px;
+    transition: all 0.2s;
+}
+
+.card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .card h4 {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     color: var(--accent);
+    font-size: 1.1rem;
 }
 
 .card p {
-    margin: 5px 0;
+    margin: 8px 0;
     font-size: 0.9rem;
 }
 
 .card .meta {
     color: var(--text-dim);
     font-size: 0.85rem;
+    margin: 4px 0;
 }
 
 .card-actions {
-    margin-top: 10px;
+    margin-top: 15px;
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.card-actions button {
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+}
+
+/* Shares Display */
+.shares-container {
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid rgba(74, 144, 226, 0.3);
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.shares-container h5 {
+    margin: 0 0 12px 0;
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+
+.share-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: var(--bg-lighter);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+}
+
+.share-item:last-child {
+    margin-bottom: 0;
+}
+
+.share-info {
+    flex: 1;
+}
+
+.share-info strong {
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.share-info .share-status {
+    font-size: 0.85rem;
+    margin-left: 8px;
+}
+
+.share-status.revoked {
+    color: var(--error);
+}
+
+.share-status.active {
+    color: var(--success);
+}
+
+/* Decrypted Content */
+.decrypted-content {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    padding: 15px;
+    border-radius: 6px;
+    margin-top: 15px;
+}
+
+.decrypted-content p {
+    margin: 8px 0;
+    font-size: 0.9rem;
+}
+
+.decrypted-content strong {
+    color: var(--success);
+    font-weight: 600;
 }
 
 /* Loading */

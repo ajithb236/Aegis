@@ -15,11 +15,12 @@
                 <p id="org-name"></p>
             </div>
             <div class="sidebar-nav">
-                <button class="tab active" data-tab="submit">Submit Alert</button>
-                <button class="tab" data-tab="my-alerts">My Alerts</button>
-                <button class="tab" data-tab="search">Search</button>
-                <button class="tab" data-tab="analytics">Analytics</button>
-                <button class="tab" data-tab="orgs">Organizations</button>
+                <button class="tab active" data-tab="submit"><i class="bi bi-send"></i> Submit Alert</button>
+                <button class="tab" data-tab="my-alerts"><i class="bi bi-file-earmark-lock"></i> My Alerts</button>
+                <button class="tab" data-tab="shared-alerts"><i class="bi bi-share"></i> Shared With Me</button>
+                <button class="tab" data-tab="search"><i class="bi bi-search"></i> Search</button>
+                <button class="tab" data-tab="analytics"><i class="bi bi-graph-up"></i> Analytics</button>
+                <button class="tab" data-tab="orgs"><i class="bi bi-building"></i> Organizations</button>
             </div>
             <div class="sidebar-footer">
                 <button class="btn btn-secondary" style="width: calc(100% - 20px); margin: 10px;" onclick="logout()">
@@ -32,7 +33,7 @@
             <div class="content">
             <!-- Submit Alert -->
             <section id="submit" class="tab-content active">
-                <h2>Submit Alert</h2>
+                <h2><i class="bi bi-send"></i> Submit Alert</h2>
                 <form id="submit-form">
                     <div class="row">
                         <div class="form-group">
@@ -70,23 +71,32 @@
                         <label>Description</label>
                         <textarea id="description" rows="3"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">Submit</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Submit Alert</button>
                 </form>
                 <div id="submit-result"></div>
             </section>
             
             <!-- My Alerts -->
             <section id="my-alerts" class="tab-content">
-                <h2>My Alerts</h2>
+                <h2><i class="bi bi-file-earmark-lock"></i> My Alerts</h2>
                 <button class="btn btn-secondary" onclick="loadMyAlerts()">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
                 <div id="my-alerts-result"></div>
             </section>
             
+            <!-- Shared With Me -->
+            <section id="shared-alerts" class="tab-content">
+                <h2><i class="bi bi-share"></i> Shared With Me</h2>
+                <button class="btn btn-secondary" onclick="loadSharedAlerts()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <div id="shared-alerts-result"></div>
+            </section>
+            
             <!-- Search -->
             <section id="search" class="tab-content">
-                <h2>Search Alerts</h2>
+                <h2><i class="bi bi-search"></i> Search Alerts</h2>
                 <form id="search-form">
                     <div class="form-group">
                         <label>Alert Type</label>
@@ -100,14 +110,14 @@
                             <option value="intrusion">Intrusion</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Search</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
                 </form>
                 <div id="search-result"></div>
             </section>
             
             <!-- Analytics -->
             <section id="analytics" class="tab-content">
-                <h2>Analytics</h2>
+                <h2><i class="bi bi-graph-up"></i> Analytics</h2>
                 <div class="analytics-controls">
                     <label>Period:</label>
                     <select id="analytics-period">
@@ -115,20 +125,40 @@
                         <option value="14">Last 14 Days</option>
                         <option value="30">Last 30 Days</option>
                     </select>
-                    <button class="btn btn-primary" onclick="loadAnalytics()">Load</button>
+                    <button class="btn btn-primary" onclick="loadAnalytics()"><i class="bi bi-bar-chart"></i> Load</button>
                 </div>
                 <div id="analytics-result"></div>
             </section>
             
             <!-- Organizations -->
             <section id="orgs" class="tab-content">
-                <h2>Organizations</h2>
+                <h2><i class="bi bi-building"></i> Organizations</h2>
                 <button class="btn btn-secondary" onclick="loadOrgs()">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
                 <div id="orgs-result"></div>
             </section>
             </div>
+        </div>
+    </div>
+    
+    <!-- Share Modal -->
+    <div id="share-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#1a1a1a; padding:20px; border-radius:8px; max-width:500px; width:90%;">
+            <h3>Share Alert</h3>
+            <form id="share-form">
+                <div class="form-group">
+                    <label>Alert ID: <span id="share-alert-id"></span></label>
+                </div>
+                <div class="form-group">
+                    <label>Share with Organizations (Ctrl+Click for multiple):</label>
+                    <select id="share-recipients" multiple size="5" style="width:100%;">
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Share</button>
+                <button type="button" class="btn btn-secondary" onclick="closeShareModal()">Cancel</button>
+            </form>
+            <div id="share-result"></div>
         </div>
     </div>
     

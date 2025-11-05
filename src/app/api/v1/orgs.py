@@ -1,5 +1,5 @@
 'Org management endpoints'
-from fastapi import APIRouter, HTTPException, Depends, Request, Response
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.db.init_db import get_db_connection
 from app.crypto import rsa_utils
 from app.api.v1.auth import get_current_user  
@@ -331,9 +331,8 @@ async def get_my_encrypted_key(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/paillier/public-key", response_model=PaillierPublicKeyResponse, tags=["Organizations"])
-async def get_paillier_public_key(response: Response):
+async def get_paillier_public_key():
     """Get the shared Paillier public key for homomorphic encryption."""
-    response.headers["Cache-Control"] = "public, max-age=3600"
     try:
         from app.crypto.paillier_key_manager import get_public_key_json
         return PaillierPublicKeyResponse(
@@ -347,9 +346,8 @@ async def get_paillier_public_key(response: Response):
 
 
 @router.get("/server/public-key", tags=["Organizations"])
-async def get_server_public_key(response: Response):
+async def get_server_public_key():
     """Get the server's public key for verifying analytics signatures."""
-    response.headers["Cache-Control"] = "public, max-age=3600"
     try:
         import os
         server_key_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'keys', 'server_public.pem')
@@ -365,3 +363,30 @@ async def get_server_public_key(response: Response):
             status_code=500, 
             detail=f"Failed to retrieve server public key: {str(e)}"
         )
+
+
+@router.get("/{org_id}/public-key", tags=["Organizations - Sharing"])
+async def get_org_public_key(org_id: str):
+    """Get an organization's RSA public key for encrypting shared alert keys."""
+    conn = await get_db_connection()
+    
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT k.public_key
+            FROM rsa_keys k
+            JOIN organizations o ON k.org_id = o.id
+            WHERE o.org_id = $1 AND k.is_active = TRUE
+            """,
+            org_id
+        )
+        
+        if not row:
+            raise HTTPException(404, f"Organization '{org_id}' not found or has no active public key")
+        
+        return {
+            "org_id": org_id,
+            "public_key": row["public_key"]
+        }
+    finally:
+        await conn.close()

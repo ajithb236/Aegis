@@ -8,7 +8,11 @@ class Settings(BaseSettings):
     POSTGRES_PORT: str
     DEBUG: bool = True
     # For CORS
-    ALLOWED_ORIGINS: list = ["*"]  # allow all for dev/demo; change later in prod
+    ALLOWED_ORIGINS: list = [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "https://z62vgvqj-8000.inc1.devtunnels.ms"
+    ]
 
     HOST: str = "localhost"
     PORT: int = 8000

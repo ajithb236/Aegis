@@ -13,11 +13,16 @@ from app.models.alert_model import (
     RiskTrend
 )
 from app.crypto import rsa_utils, hmac_utils, paillier_utils, aes_utils
+from pydantic import BaseModel
+from typing import List
 import uuid
 import base64
 import json
 
 router = APIRouter()
+
+class ShareAlertRequest(BaseModel):
+    shares: dict  # {recipient_org_id: wrapped_aes_key_base64}
 
 
 @router.get("/", tags=["Alerts"])
@@ -386,5 +391,253 @@ async def get_analytics_summary(days: int = 7, current_user: dict = Depends(get_
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analytics failed: {str(e)}")
+    finally:
+        await conn.close()
+
+
+@router.post("/{alert_id}/share", tags=["Alerts - Sharing"])
+async def share_alert(
+    alert_id: str,
+    share_request: ShareAlertRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    org_id = current_user["sub"]
+    conn = await get_db_connection()
+    
+    try:
+        alert = await conn.fetchrow(
+            """
+            SELECT a.alert_id, a.wrapped_aes_key, o.id as submitter_id
+            FROM alerts a
+            JOIN organizations o ON a.submitter_org_id = o.id
+            WHERE a.alert_id = $1 AND o.org_id = $2
+            """,
+            alert_id, org_id
+        )
+        
+        if not alert:
+            raise HTTPException(404, "Alert not found or not owned by you")
+        
+        # Get recipient org IDs from shares dict
+        recipient_org_ids = list(share_request.shares.keys())
+        
+        # Verify all recipients exist
+        recipients = await conn.fetch(
+            "SELECT id, org_id FROM organizations WHERE org_id = ANY($1)",
+            recipient_org_ids
+        )
+        
+        if len(recipients) != len(recipient_org_ids):
+            raise HTTPException(400, "One or more recipients not found")
+        
+        # Store pre-wrapped keys (already encrypted by frontend)
+        shares_created = []
+        shares_restored = []
+        
+        for recipient in recipients:
+            wrapped_key_base64 = share_request.shares[recipient["org_id"]]
+            wrapped_key_bytes = base64.b64decode(wrapped_key_base64)
+            
+            # Check if share exists (including revoked ones)
+            existing = await conn.fetchrow(
+                """
+                SELECT revoked FROM alert_shares
+                WHERE alert_id = $1 AND shared_with_org_id = $2
+                """,
+                alert_id, recipient["id"]
+            )
+            
+            if existing:
+                if existing["revoked"]:
+                    # Un-revoke and update the wrapped key
+                    await conn.execute(
+                        """
+                        UPDATE alert_shares
+                        SET revoked = FALSE, revoked_at = NULL, 
+                            wrapped_key_for_recipient = $3, shared_at = NOW()
+                        WHERE alert_id = $1 AND shared_with_org_id = $2
+                        """,
+                        alert_id, recipient["id"], wrapped_key_bytes
+                    )
+                    shares_restored.append(recipient["org_id"])
+                else:
+                    # Already shared and active, update wrapped key
+                    await conn.execute(
+                        """
+                        UPDATE alert_shares
+                        SET wrapped_key_for_recipient = $3
+                        WHERE alert_id = $1 AND shared_with_org_id = $2
+                        """,
+                        alert_id, recipient["id"], wrapped_key_bytes
+                    )
+                    shares_created.append(recipient["org_id"])
+            else:
+                # New share
+                await conn.execute(
+                    """
+                    INSERT INTO alert_shares (
+                        alert_id, shared_by_org_id, shared_with_org_id, wrapped_key_for_recipient
+                    ) VALUES ($1, $2, $3, $4)
+                    """,
+                    alert_id, alert["submitter_id"], recipient["id"], wrapped_key_bytes
+                )
+                shares_created.append(recipient["org_id"])
+        
+        await conn.execute(
+            "UPDATE alerts SET visibility = 'shared' WHERE alert_id = $1",
+            alert_id
+        )
+        
+        result = {"status": "success", "shared_with": shares_created}
+        if shares_restored:
+            result["restored"] = shares_restored
+        
+        return result
+        
+    finally:
+        await conn.close()
+
+
+@router.get("/shared-with-me", tags=["Alerts - Sharing"])
+async def get_shared_alerts(current_user: dict = Depends(get_current_user)):
+    org_id = current_user["sub"]
+    conn = await get_db_connection()
+    
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT 
+                a.alert_id, a.created_at, a.alert_type, a.severity,
+                s.shared_at, o.org_id as shared_by, o.org_name
+            FROM alert_shares s
+            JOIN alerts a ON s.alert_id = a.alert_id
+            JOIN organizations o ON s.shared_by_org_id = o.id
+            WHERE s.shared_with_org_id = (SELECT id FROM organizations WHERE org_id = $1)
+              AND s.revoked = FALSE
+            ORDER BY s.shared_at DESC
+            """,
+            org_id
+        )
+        
+        alerts = [
+            {
+                "alert_id": r["alert_id"],
+                "alert_type": r["alert_type"],
+                "severity": r["severity"],
+                "shared_by": r["shared_by"],
+                "shared_by_name": r["org_name"],
+                "shared_at": r["shared_at"].isoformat(),
+                "created_at": r["created_at"].isoformat()
+            }
+            for r in rows
+        ]
+        
+        return {"count": len(alerts), "alerts": alerts}
+        
+    finally:
+        await conn.close()
+
+
+@router.get("/{alert_id}/shares", tags=["Alerts - Sharing"])
+async def get_alert_shares(alert_id: str, current_user: dict = Depends(get_current_user)):
+    """Get list of organizations this alert is shared with (only for alert owner)."""
+    org_id = current_user["sub"]
+    conn = await get_db_connection()
+    
+    try:
+        alert = await conn.fetchrow(
+            """
+            SELECT id FROM alerts
+            WHERE alert_id = $1 AND submitter_org_id = (SELECT id FROM organizations WHERE org_id = $2)
+            """,
+            alert_id, org_id
+        )
+        
+        if not alert:
+            raise HTTPException(404, "Alert not found or not owned by you")
+        
+        shares = await conn.fetch(
+            """
+            SELECT o.org_id, o.org_name, s.shared_at, s.revoked
+            FROM alert_shares s
+            JOIN organizations o ON s.shared_with_org_id = o.id
+            WHERE s.alert_id = $1
+            ORDER BY s.shared_at DESC
+            """,
+            alert_id
+        )
+        
+        return {
+            "alert_id": alert_id,
+            "shares": [{
+                "org_id": s["org_id"],
+                "org_name": s["org_name"],
+                "shared_at": s["shared_at"].isoformat() if s["shared_at"] else None,
+                "revoked": s["revoked"]
+            } for s in shares]
+        }
+        
+    finally:
+        await conn.close()
+
+
+@router.get("/{alert_id}/get-shared", tags=["Alerts - Sharing"])
+async def get_shared_alert(alert_id: str, current_user: dict = Depends(get_current_user)):
+    """Get encrypted payload and wrapped key for a shared alert (decryption happens client-side)."""
+    org_id = current_user["sub"]
+    conn = await get_db_connection()
+    
+    try:
+        share = await conn.fetchrow(
+            """
+            SELECT s.wrapped_key_for_recipient, a.encrypted_payload
+            FROM alert_shares s
+            JOIN alerts a ON s.alert_id = a.alert_id
+            WHERE a.alert_id = $1 
+              AND s.shared_with_org_id = (SELECT id FROM organizations WHERE org_id = $2)
+              AND s.revoked = FALSE
+            """,
+            alert_id, org_id
+        )
+        
+        if not share:
+            raise HTTPException(404, "Alert not shared with you")
+        
+        return {
+            "alert_id": alert_id,
+            "encrypted_payload": base64.b64encode(share["encrypted_payload"]).decode(),
+            "wrapped_aes_key": base64.b64encode(share["wrapped_key_for_recipient"]).decode()
+        }
+        
+    finally:
+        await conn.close()
+
+
+@router.delete("/{alert_id}/share/{recipient_org_id}", tags=["Alerts - Sharing"])
+async def revoke_share(
+    alert_id: str,
+    recipient_org_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    org_id = current_user["sub"]
+    conn = await get_db_connection()
+    
+    try:
+        result = await conn.execute(
+            """
+            UPDATE alert_shares
+            SET revoked = TRUE, revoked_at = NOW()
+            WHERE alert_id = $1
+              AND shared_by_org_id = (SELECT id FROM organizations WHERE org_id = $2)
+              AND shared_with_org_id = (SELECT id FROM organizations WHERE org_id = $3)
+            """,
+            alert_id, org_id, recipient_org_id
+        )
+        
+        if result == "UPDATE 0":
+            raise HTTPException(404, "Share not found")
+        
+        return {"status": "revoked"}
+        
     finally:
         await conn.close()

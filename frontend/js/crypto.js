@@ -201,6 +201,34 @@ async function computeHMACBeacon(data, key = 'shared-secret') {
         .join('');
 }
 
+async function wrapAESKeyForRecipient(aesCryptoKey, recipientPublicKeyPem) {
+    // Export the AES CryptoKey to raw bytes
+    const aesKeyBytes = await crypto.subtle.exportKey('raw', aesCryptoKey);
+    
+    const pemContents = recipientPublicKeyPem
+        .replace(/-----BEGIN PUBLIC KEY-----/, '')
+        .replace(/-----END PUBLIC KEY-----/, '')
+        .replace(/\s/g, '');
+    
+    const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+    
+    const publicKey = await crypto.subtle.importKey(
+        'spki',
+        binaryDer,
+        { name: 'RSA-OAEP', hash: 'SHA-256' },
+        false,
+        ['encrypt']
+    );
+    
+    const wrapped = await crypto.subtle.encrypt(
+        { name: 'RSA-OAEP' },
+        publicKey,
+        aesKeyBytes
+    );
+    
+    return btoa(String.fromCharCode(...new Uint8Array(wrapped)));
+}
+
 async function unwrapAESKey(wrappedKeyBase64, privateKeyPem) {
     const pemContents = privateKeyPem
         .replace(/-----BEGIN PRIVATE KEY-----/, '')
@@ -229,8 +257,8 @@ async function unwrapAESKey(wrappedKeyBase64, privateKeyPem) {
         'raw',
         unwrappedKey,
         { name: 'AES-GCM', length: 256 },
-        false,
-        ['decrypt']
+        true,  // Make extractable for re-wrapping during sharing
+        ['decrypt', 'encrypt']
     );
 }
 
