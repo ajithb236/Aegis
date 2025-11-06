@@ -308,20 +308,3 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-
-# oldie
-async def verify_token(authorization: str = None) -> str:
-
-    from fastapi import Header
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing authorization header")
-    
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid scheme")
-        
-        payload = decode_access_token(token)
-        return payload["sub"]  # Return org_id string
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid token")
