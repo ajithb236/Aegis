@@ -12,7 +12,7 @@ let bootstrapData = null;
         sessionStorage.setItem('orgPublicKey', bootstrapData.public_key);
         sessionStorage.setItem('encryptedKeyData', JSON.stringify(bootstrapData.encrypted_key));
     } catch (error) {
-        console.error('Bootstrap failed:', error);
+        showError('Failed to load dashboard data. Please refresh the page.');
     }
 })();
 
@@ -76,7 +76,7 @@ document.getElementById('submit-form').addEventListener('submit', async (e) => {
                 });
             }
         } catch (err) {
-            console.warn('Paillier encryption failed:', err);
+            // Paillier encryption failed, continue without it
         }
         
         const result = await apiRequest('/alerts/submit', {
@@ -285,7 +285,6 @@ async function loadAnalytics() {
                     </div>`;
                 }
             } catch (error) {
-                console.error('Signature verification error:', error);
                 signatureStatus = `<div style="color: #ff9800; font-size: 0.9em; margin-bottom: 10px;">
                     ⚠ Could not verify signature: ${error.message}
                 </div>`;

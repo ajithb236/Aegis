@@ -6,18 +6,24 @@ import asyncio
 from app.db.init_db import get_db_connection
 
 async def run_migration(filename: str):
+    """Run a specific database migration file"""
     conn = await get_db_connection()
     try:
-        migration_path = Path(__file__).parent.parent  / "db" / "migrations" / filename
+        migration_path = Path(__file__).parent.parent / "db" / "migrations" / filename
         with open(migration_path, "r") as f:
             sql = f.read()
-        await conn.execute(sql) 
-        print(f"Migration {filename} completed successfully")
+        await conn.execute(sql)
+        print(f"✓ Migration {filename} completed successfully")
     except Exception as e:
-        print(f"Migration failed: {e}")
+        print(f"✗ Migration failed: {e}")
         raise
     finally:
         await conn.close()
 
 if __name__ == "__main__":
-    asyncio.run(run_migration("005_add_alert_sharing.sql"))
+    if len(sys.argv) > 1:
+        migration_file = sys.argv[1]
+    else:
+        migration_file = "005_add_alert_sharing.sql"
+    
+    asyncio.run(run_migration(migration_file))

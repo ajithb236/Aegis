@@ -205,10 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-#server keys
-keys/* 
-keys/
 
-.pem
+# Cryptographic keys - NEVER commit these
+keys/*
+!keys/.gitkeep
+
+# Individual key files (backup protection)
+*.pem
+*.key
 
 

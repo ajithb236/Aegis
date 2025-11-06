@@ -6,18 +6,18 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_HOST: str
     POSTGRES_PORT: str
-    DEBUG: bool = True
+    DEBUG: bool = False
     # For CORS
     ALLOWED_ORIGINS: list = [
         "http://localhost:8080",
-        "http://127.0.0.1:8080",
-        "https://z62vgvqj-8000.inc1.devtunnels.ms"
+        "http://127.0.0.1:8080"
     ]
 
     HOST: str = "localhost"
     PORT: int = 8000
-    #JWT config
-    JWT_SECRET_KEY: str  #random hex,in .env,64 char hex(32 bytes)
+    
+    # JWT configuration
+    JWT_SECRET_KEY: str  # 64-character hex string (32 bytes), defined in .env
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7

@@ -1,0 +1,2 @@
+# This directory stores cryptographic keys
+# Keys are generated at runtime and should NEVER be committed to version control

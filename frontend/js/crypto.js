@@ -346,7 +346,6 @@ async function verifySignature(data, signatureBase64, publicKeyPem) {
         
         return isValid;
     } catch (error) {
-        console.error('Signature verification error:', error);
         return false;
     }
 }
