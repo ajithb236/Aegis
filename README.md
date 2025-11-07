@@ -1,5 +1,3 @@
-Collecting workspace information# Aegis - Privacy-Preserving Threat Intelligence Platform
-
 A secure multi-organization threat intelligence sharing system with end-to-end encryption, digital signatures, and homomorphic analytics.
 
 ## Overview
